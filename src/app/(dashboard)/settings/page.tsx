@@ -1,18 +1,75 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { HiOutlineArrowPath, HiOutlineCircleStack, HiOutlineBuildingStorefront } from 'react-icons/hi2'
 import toast from 'react-hot-toast'
 
 export default function SettingsPage() {
-  const [storeName, setStoreName] = useState('RDM APP STORE')
-  const [phone, setPhone] = useState('08123456789')
-  const [address, setAddress] = useState('Jl. Merdeka No. 123, Jakarta')
+  const [storeName, setStoreName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
   const [tax, setTax] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  const fetchSettings = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch('/api/settings')
+      const data = await res.json()
+      if (res.ok) {
+        setStoreName(data.name || '')
+        setPhone(data.phone || '')
+        setAddress(data.address || '')
+        setTax(data.taxRate || 0)
+      } else {
+        toast.error(data.error || 'Gagal memuat pengaturan')
+      }
+    } catch (e) {
+      toast.error('Kesalahan koneksi saat memuat pengaturan')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    toast.success('Pengaturan toko berhasil disimpan!')
+    try {
+      setSaving(true)
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: storeName,
+          phone,
+          address,
+          taxRate: tax,
+        }),
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        toast.success('Pengaturan toko berhasil disimpan!')
+      } else {
+        toast.error(data.error || 'Gagal menyimpan pengaturan')
+      }
+    } catch (e) {
+      toast.error('Kesalahan koneksi saat menyimpan pengaturan')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="animate-fade-in" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+        <div style={{ color: 'var(--text-muted)' }}>Memuat pengaturan...</div>
+      </div>
+    )
   }
 
   return (
@@ -49,7 +106,9 @@ export default function SettingsPage() {
             </div>
           </div>
           <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="submit" className="btn btn-primary">Simpan Pengaturan</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
+            </button>
           </div>
         </form>
 
