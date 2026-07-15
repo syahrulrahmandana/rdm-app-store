@@ -79,6 +79,7 @@ export default function ProductsPage() {
   const [catIcon, setCatIcon] = useState('📦')
   const [catColor, setCatColor] = useState('#3B82F6')
   const [isSubmittingCat, setIsSubmittingCat] = useState(false)
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
 
   useEffect(() => {
     fetchProducts()
@@ -204,8 +205,10 @@ export default function ProductsPage() {
 
     setIsSubmittingCat(true)
     try {
-      const res = await fetch('/api/categories', {
-        method: 'POST',
+      const url = editingCategory ? `/api/categories/${editingCategory.id}` : '/api/categories'
+      const method = editingCategory ? 'PUT' : 'POST'
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: catName,
@@ -217,14 +220,16 @@ export default function ProductsPage() {
 
       const data = await res.json()
       if (res.ok) {
-        toast.success('Kategori berhasil ditambahkan')
+        toast.success(editingCategory ? 'Kategori berhasil diubah' : 'Kategori berhasil ditambahkan')
         setCatName('')
         setCatDesc('')
         setCatIcon('📦')
         setCatColor('#3B82F6')
+        setEditingCategory(null)
         fetchCategories()
+        fetchProducts() // refresh categories on products list dropdown
       } else {
-        toast.error(data.error || 'Gagal menambahkan kategori')
+        toast.error(data.error || 'Gagal menyimpan kategori')
       }
     } catch (e) {
       toast.error('Terjadi kesalahan')
@@ -233,8 +238,12 @@ export default function ProductsPage() {
     }
   }
 
-  const handleDeleteCategory = async (id: string, name: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus kategori "${name}"?`)) return
+  const handleDeleteCategory = async (id: string, name: string, count: number) => {
+    let confirmMsg = `Apakah Anda yakin ingin menghapus kategori "${name}"?`
+    if (count > 0) {
+      confirmMsg = `Kategori "${name}" memiliki ${count} produk. Jika dihapus, produk-produk tersebut akan dipindahkan ke kategori "Umum". Apakah Anda yakin?`
+    }
+    if (!confirm(confirmMsg)) return
 
     try {
       const res = await fetch(`/api/categories/${id}`, {
@@ -603,7 +612,7 @@ export default function ProductsPage() {
               {/* Kolom Kiri: Form Tambah Kategori */}
               <div>
                 <h4 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: 'var(--text-primary)' }}>
-                  Tambah Kategori Baru
+                  {editingCategory ? `Edit Kategori: ${editingCategory.name}` : 'Tambah Kategori Baru'}
                 </h4>
                 <form onSubmit={handleCreateCategory} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div className="input-group">
@@ -699,9 +708,26 @@ export default function ProductsPage() {
                     </div>
                   </div>
 
-                  <button type="submit" className="btn btn-primary" style={{ marginTop: 8 }} disabled={isSubmittingCat}>
-                    {isSubmittingCat ? 'Menyimpan...' : 'Tambah Kategori'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={isSubmittingCat}>
+                      {isSubmittingCat ? 'Menyimpan...' : (editingCategory ? 'Simpan Perubahan' : 'Tambah Kategori')}
+                    </button>
+                    {editingCategory && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => {
+                          setEditingCategory(null)
+                          setCatName('')
+                          setCatDesc('')
+                          setCatIcon('📦')
+                          setCatColor('#3B82F6')
+                        }}
+                      >
+                        Batal
+                      </button>
+                    )}
+                  </div>
                 </form>
               </div>
 
@@ -769,20 +795,32 @@ export default function ProductsPage() {
                         </div>
 
                         {/* Aksi */}
-                        <button
-                          type="button"
-                          className="btn btn-icon btn-ghost"
-                          style={{
-                            color: productCount > 0 ? 'var(--text-muted)' : 'var(--accent-red)',
-                            cursor: productCount > 0 ? 'not-allowed' : 'pointer',
-                            opacity: productCount > 0 ? 0.3 : 1
-                          }}
-                          onClick={() => handleDeleteCategory(c.id, c.name)}
-                          disabled={productCount > 0}
-                          title={productCount > 0 ? 'Kategori tidak dapat dihapus karena memiliki produk' : 'Hapus Kategori'}
-                        >
-                          <HiOutlineTrash size={16} />
-                        </button>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            type="button"
+                            className="btn btn-icon btn-ghost"
+                            style={{ color: 'var(--accent-blue)' }}
+                            onClick={() => {
+                              setEditingCategory(c)
+                              setCatName(c.name)
+                              setCatDesc(c.description || '')
+                              setCatIcon(c.icon || '📦')
+                              setCatColor(c.color || '#3B82F6')
+                            }}
+                            title="Edit Kategori"
+                          >
+                            <HiOutlinePencilSquare size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-icon btn-ghost"
+                            style={{ color: 'var(--accent-red)' }}
+                            onClick={() => handleDeleteCategory(c.id, c.name, productCount)}
+                            title="Hapus Kategori"
+                          >
+                            <HiOutlineTrash size={16} />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
