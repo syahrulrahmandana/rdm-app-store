@@ -9,9 +9,25 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@prisma/client": "6.19.3",
+    "@prisma/config": "^7.8.0",
+    "@tanstack/react-table": "^8.21.3",
+    "bcryptjs": "^3.0.3",
+    "date-fns": "^4.4.0",
+    "dotenv": "^17.4.2",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "next": "16.2.10",
+    "next-auth": "^4.24.14",
+    "prisma": "6.19.3",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-hot-toast": "^2.6.0",
+    "react-icons": "^5.7.0",
+    "recharts": "^3.9.2",
+    "uuid": "^14.0.1",
+    "xlsx": "^0.18.5",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
