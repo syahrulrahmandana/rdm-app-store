@@ -58,10 +58,10 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose:
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">R</div>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--sidebar-text)' }}>
             RDM APP STORE
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+          <div style={{ fontSize: 11, color: 'var(--sidebar-text-muted)', marginTop: 1 }}>
             Point of Sale System
           </div>
         </div>
@@ -96,10 +96,10 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose:
           {session?.user?.name ? getInitials(session.user.name) : '?'}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--sidebar-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {session?.user?.name || 'Loading...'}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: 12, color: 'var(--sidebar-text-muted)' }}>
             {(session?.user as any)?.role || 'User'}
           </div>
         </div>
