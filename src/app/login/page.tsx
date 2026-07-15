@@ -40,9 +40,9 @@ export default function LoginPage() {
   return (
     <div className="login-container">
       {/* Background Glow Effects */}
-      <div className="login-bg-glow" style={{ top: '-10%', left: '-5%', background: '#6366f1' }} />
-      <div className="login-bg-glow" style={{ bottom: '-10%', right: '-5%', background: '#8b5cf6' }} />
-      <div className="login-bg-glow" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: '#06b6d4', width: 300, height: 300 }} />
+      <div className="login-bg-glow" style={{ top: '-10%', left: '-5%', background: '#FF731D' }} />
+      <div className="login-bg-glow" style={{ bottom: '-10%', right: '-5%', background: '#1746A2' }} />
+      <div className="login-bg-glow" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: '#5F9DF7', width: 300, height: 300 }} />
 
       <div className="login-card">
         {/* Logo */}
@@ -50,7 +50,7 @@ export default function LoginPage() {
           <div style={{
             width: 72,
             height: 72,
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: 'linear-gradient(135deg, #FF731D, #5F9DF7)',
             borderRadius: 16,
             display: 'flex',
             alignItems: 'center',
@@ -59,7 +59,7 @@ export default function LoginPage() {
             fontSize: 32,
             fontWeight: 800,
             color: 'white',
-            boxShadow: '0 8px 32px rgba(99, 102, 241, 0.4)',
+            boxShadow: '0 8px 32px rgba(255, 115, 29, 0.4)',
           }}>
             R
           </div>

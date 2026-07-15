@@ -39,7 +39,7 @@ interface DashboardData {
   paymentMethodStats: { method: string; count: number; total: number }[]
 }
 
-const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
+const COLORS = ['#FF731D', '#1746A2', '#5F9DF7', '#10b981', '#ef4444', '#8b5cf6']
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
@@ -190,15 +190,15 @@ export default function DashboardPage() {
             <AreaChart data={data.salesChart}>
               <defs>
                 <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#FF731D" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#FF731D" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" />
               <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={12} />
               <YAxis stroke="var(--text-muted)" fontSize={12} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
               <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="total" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorSales)" />
+              <Area type="monotone" dataKey="total" stroke="#FF731D" strokeWidth={2} fillOpacity={1} fill="url(#colorSales)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
