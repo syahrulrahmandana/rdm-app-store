@@ -46,7 +46,6 @@ export default function POSPage() {
   const [receiptNo, setReceiptNo] = useState('')
   const [isReceiptOpen, setIsReceiptOpen] = useState(false)
   const [lastTransaction, setLastTransaction] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState<'catalog' | 'cart'>('catalog')
 
   useEffect(() => {
     fetchProducts()
@@ -142,26 +141,8 @@ export default function POSPage() {
 
   return (
     <div className="pos-layout animate-fade-in">
-      {/* Mobile Tab Header */}
-      <div className="pos-mobile-tabs">
-        <button
-          className={`pos-mobile-tab-btn ${activeTab === 'catalog' ? 'active' : ''}`}
-          onClick={() => setActiveTab('catalog')}
-          type="button"
-        >
-          📦 Produk ({products.length})
-        </button>
-        <button
-          className={`pos-mobile-tab-btn ${activeTab === 'cart' ? 'active' : ''}`}
-          onClick={() => setActiveTab('cart')}
-          type="button"
-        >
-          🛒 Keranjang ({cart.items.reduce((sum, item) => sum + item.quantity, 0)})
-        </button>
-      </div>
-
       {/* Kiri: Katalog Produk */}
-      <div className={`pos-products ${activeTab === 'catalog' ? 'show-tab' : 'hide-tab'}`}>
+      <div className="pos-products">
         {/* Search & Categories */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
           <div className="search-box" style={{ flex: 1 }}>
@@ -244,7 +225,7 @@ export default function POSPage() {
       </div>
 
       {/* Kanan: Keranjang Kasir */}
-      <div className={`pos-cart ${activeTab === 'cart' ? 'show-tab' : 'hide-tab'}`}>
+      <div className="pos-cart">
         <div className="pos-cart-header">
           <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16 }}>
             <HiOutlineShoppingBag /> Keranjang Belanja
