@@ -62,15 +62,16 @@ export async function GET(request: NextRequest) {
         totalTransactions: transactions.length,
         totalItems: transactions.reduce((sum, t) => sum + t.items.reduce((s, i) => s + i.quantity, 0), 0),
         totalProfit: 0,
-        avgTransaction: 0,
+        totalCapital: 0,
       }
 
       transactions.forEach((tx) => {
         tx.items.forEach((item) => {
-          summary.totalProfit += (item.price - (item.product?.buyPrice || 0)) * item.quantity
+          const buyPrice = item.product?.buyPrice || 0
+          summary.totalCapital += buyPrice * item.quantity
+          summary.totalProfit += (item.price - buyPrice) * item.quantity
         })
       })
-      summary.avgTransaction = transactions.length > 0 ? summary.totalSales / transactions.length : 0
 
       // Top products
       const productSales: Record<string, { name: string; quantity: number; revenue: number; profit: number }> = {}

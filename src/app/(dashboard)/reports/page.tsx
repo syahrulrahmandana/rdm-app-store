@@ -25,7 +25,7 @@ interface ReportSummary {
   totalTransactions: number
   totalItems: number
   totalProfit: number
-  avgTransaction: number
+  totalCapital: number
 }
 
 interface ChartItem {
@@ -112,8 +112,8 @@ export default function ReportsPage() {
     
     // 1. RINGKASAN LAPORAN
     csvContent += '=== RINGKASAN LAPORAN PENJUALAN ===\n'
-    csvContent += 'Total Penjualan,Total Transaksi,Total Item Terjual,Total Keuntungan (Estimasi Profit),Rata-rata per Transaksi\n'
-    csvContent += `${data.summary.totalSales},${data.summary.totalTransactions},${data.summary.totalItems},${data.summary.totalProfit},${Math.round(data.summary.avgTransaction)}\n\n`
+    csvContent += 'Total Penjualan,Total Transaksi,Total Item Terjual,Total Keuntungan (Estimasi Profit),Total Modal Keluar\n'
+    csvContent += `${data.summary.totalSales},${data.summary.totalTransactions},${data.summary.totalItems},${data.summary.totalProfit},${data.summary.totalCapital}\n\n`
     
     // 2. DAFTAR DETAIL TRANSAKSI
     csvContent += '=== DAFTAR DETAIL TRANSAKSI ===\n'
@@ -265,9 +265,9 @@ export default function ReportsPage() {
         </div>
 
         <div className="stat-card orange">
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Rata-rata Transaksi</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Total Modal Keluar</div>
           <div className="font-mono" style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent-orange)' }}>
-            {formatCurrency(data.summary.avgTransaction)}
+            {formatCurrency(data.summary.totalCapital)}
           </div>
         </div>
       </div>
