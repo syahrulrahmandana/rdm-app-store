@@ -104,15 +104,19 @@ export async function GET(request: NextRequest) {
         chartData: Object.values(grouped),
         topProducts,
         paymentMethods: Object.values(paymentMethods),
-        transactions: transactions.slice(0, 100).map((t) => ({
-          id: t.id,
-          receiptNo: t.receiptNo,
-          total: t.total,
-          paymentMethod: t.paymentMethod,
-          itemCount: t.items.length,
-          userName: t.user.name,
-          createdAt: t.createdAt,
-        })),
+        transactions: transactions.slice(0, 100).map((t) => {
+          const profit = t.items.reduce((sum, item) => sum + (item.price - (item.product?.buyPrice || 0)) * item.quantity, 0)
+          return {
+            id: t.id,
+            receiptNo: t.receiptNo,
+            total: t.total,
+            profit,
+            paymentMethod: t.paymentMethod,
+            itemCount: t.items.reduce((sum, item) => sum + item.quantity, 0), // Use total quantity of all items
+            userName: t.user.name,
+            createdAt: t.createdAt,
+          }
+        }),
       })
     }
 

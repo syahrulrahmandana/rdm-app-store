@@ -53,6 +53,7 @@ interface TransactionItem {
   id: string
   receiptNo: string
   total: number
+  profit: number
   paymentMethod: string
   itemCount: number
   userName: string
@@ -105,21 +106,47 @@ export default function ReportsPage() {
 
   const exportCSV = () => {
     if (!data) return
-    let csvContent = 'data:text/csv;charset=utf-8,'
-    csvContent += 'Tanggal/Periode,Total Penjualan,Total Transaksi,Total Profit\n'
-
-    data.chartData.forEach((row) => {
-      csvContent += `${row.date},${row.totalSales},${row.count},${row.totalProfit}\n`
+    
+    // Gunakan BOM UTF-8 (\ufeff) dan sep=, agar Excel otomatis membaca koma sebagai pemisah kolom secara rapi
+    let csvContent = '\ufeffsep=,\n'
+    
+    // 1. RINGKASAN LAPORAN
+    csvContent += '=== RINGKASAN LAPORAN PENJUALAN ===\n'
+    csvContent += 'Total Penjualan,Total Transaksi,Total Item Terjual,Total Keuntungan (Estimasi Profit),Rata-rata per Transaksi\n'
+    csvContent += `${data.summary.totalSales},${data.summary.totalTransactions},${data.summary.totalItems},${data.summary.totalProfit},${Math.round(data.summary.avgTransaction)}\n\n`
+    
+    // 2. DAFTAR DETAIL TRANSAKSI
+    csvContent += '=== DAFTAR DETAIL TRANSAKSI ===\n'
+    csvContent += 'Nomor Struk,Tanggal & Waktu,Kasir,Metode Pembayaran,Jumlah Barang,Total Belanja,Keuntungan (Profit)\n'
+    data.transactions.forEach((t) => {
+      const formattedDate = new Date(t.createdAt).toLocaleString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).replace(',', '') // Hapus koma pemisah detik/menit untuk keamanan CSV
+      csvContent += `${t.receiptNo},${formattedDate},${t.userName},${t.paymentMethod},${t.itemCount},${t.total},${t.profit || 0}\n`
     })
-
-    const encodedUri = encodeURI(csvContent)
+    csvContent += '\n'
+    
+    // 3. DAFTAR PRODUK TERLARIS
+    csvContent += '=== PRODUK TERLARIS ===\n'
+    csvContent += 'Nama Produk,Jumlah Terjual,Total Pendapatan (Omset),Total Keuntungan (Profit)\n'
+    data.topProducts.forEach((p) => {
+      csvContent += `${p.name.replace(/,/g, ' ')},${p.quantity},${p.revenue},${p.profit}\n`
+    })
+    
+    // Buat Blob agar data besar aman terdownload tanpa limitasi URL browser
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.setAttribute('href', encodedUri)
+    link.setAttribute('href', url)
     link.setAttribute('download', `laporan_penjualan_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    toast.success('Laporan berhasil diexport ke CSV')
+    toast.success('Laporan penjualan lengkap berhasil di-export ke CSV!')
   }
 
   const handleVoidTransaction = async (e: React.FormEvent) => {
