@@ -1060,7 +1060,6 @@ html, body {
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
   z-index: 99;
-  backdrop-filter: blur(4px);
 }
 
 .sidebar-overlay.active {
