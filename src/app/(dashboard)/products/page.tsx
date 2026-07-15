@@ -25,6 +25,7 @@ interface Product {
   categoryId: string | null
   category?: { name: string } | null
   manageStock: boolean
+  image?: string | null
 }
 
 interface Category {
@@ -69,6 +70,7 @@ export default function ProductsPage() {
   const [minStock, setMinStock] = useState(5)
   const [unit, setUnit] = useState('pcs')
   const [manageStock, setManageStock] = useState(true)
+  const [image, setImage] = useState<string | null>(null)
 
   // Category Management Modal states
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
@@ -119,6 +121,7 @@ export default function ProductsPage() {
     setMinStock(5)
     setUnit('pcs')
     setManageStock(true)
+    setImage(null)
     setIsModalOpen(true)
   }
 
@@ -134,6 +137,7 @@ export default function ProductsPage() {
     setMinStock(product.minStock)
     setUnit(product.unit)
     setManageStock(product.manageStock ?? true)
+    setImage(product.image || null)
     setIsModalOpen(true)
   }
 
@@ -166,6 +170,7 @@ export default function ProductsPage() {
       minStock: manageStock ? minStock : 0,
       unit,
       manageStock,
+      image,
     }
 
     try {
@@ -324,8 +329,21 @@ export default function ProductsPage() {
               {products.map((p) => (
                 <tr key={p.id}>
                   <td>
-                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</div>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Unit: {p.unit}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      {p.image ? (
+                        <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)', flexShrink: 0 }}>
+                          <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                      ) : (
+                        <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, border: '1px solid var(--border-color)', flexShrink: 0 }}>
+                          📦
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</div>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Unit: {p.unit}</span>
+                      </div>
+                    </div>
                   </td>
                   <td>
                     <div className="font-mono" style={{ fontSize: 13 }}>{p.sku}</div>
@@ -515,6 +533,49 @@ export default function ProductsPage() {
                     disabled={!manageStock}
                     style={{ opacity: manageStock ? 1 : 0.5 }}
                   />
+                </div>
+
+                <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="input-label">Foto / Gambar Produk</label>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    {image && (
+                      <div style={{ width: 60, height: 60, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)', flexShrink: 0 }}>
+                        <img src={image} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    )}
+                    <div style={{ flex: 1, display: 'flex', gap: 8 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            if (file.size > 2 * 1024 * 1024) {
+                              toast.error('Ukuran file maksimal adalah 2MB')
+                              return
+                            }
+                            const reader = new FileReader()
+                            reader.onloadend = () => {
+                              setImage(reader.result as string)
+                            }
+                            reader.readAsDataURL(file)
+                          }
+                        }}
+                        className="input"
+                        style={{ padding: '6px 12px' }}
+                      />
+                      {image && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => setImage(null)}
+                          style={{ color: 'var(--accent-red)' }}
+                        >
+                          Hapus
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="modal-footer">

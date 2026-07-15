@@ -23,6 +23,7 @@ interface Product {
   unit: string
   categoryId: string | null
   manageStock: boolean
+  image: string | null
 }
 
 interface Category {
@@ -206,8 +207,14 @@ export default function POSPage() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: 32,
+                  overflow: 'hidden',
+                  border: '1px solid var(--border-color)',
                 }}>
-                  📦
+                  {p.image ? (
+                    <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    '📦'
+                  )}
                 </div>
                 <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', marginTop: 4 }}>
                   {p.name}
