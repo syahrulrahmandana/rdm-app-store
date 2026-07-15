@@ -357,19 +357,21 @@ export default function POSPage() {
                   </div>
                 </div>
 
-                {/* Nominal Bayar (Hanya Tunai) */}
-                {cart.paymentMethod === 'CASH' && (
-                  <div className="input-group" style={{ marginBottom: 16 }}>
-                    <label className="input-label">Jumlah Uang Tunai</label>
-                    <input
-                      id="payment-cash-amount"
-                      type="number"
-                      className="input font-mono"
-                      style={{ fontSize: 18, textAlign: 'center' }}
-                      value={cart.paymentAmount}
-                      onChange={(e) => cart.setPaymentAmount(parseFloat(e.target.value) || 0)}
-                      required
-                    />
+                {/* Nominal Bayar */}
+                <div className="input-group" style={{ marginBottom: 16 }}>
+                  <label className="input-label">
+                    {cart.paymentMethod === 'CASH' ? 'Jumlah Uang Tunai' : `Jumlah Uang (${cart.paymentMethod})`}
+                  </label>
+                  <input
+                    id="payment-cash-amount"
+                    type="number"
+                    className="input font-mono"
+                    style={{ fontSize: 18, textAlign: 'center' }}
+                    value={cart.paymentAmount}
+                    onChange={(e) => cart.setPaymentAmount(parseFloat(e.target.value) || 0)}
+                    required
+                  />
+                  {cart.paymentMethod === 'CASH' && (
                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                       {[5000, 10000, 20000, 50000, 100000].map((cash) => (
                         <button
@@ -383,22 +385,22 @@ export default function POSPage() {
                         </button>
                       ))}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                {/* Kembalian (Hanya Tunai) */}
-                {cart.paymentMethod === 'CASH' && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: 12, background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', marginBottom: 16 }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Kembalian:</span>
-                    <span className="font-mono" style={{
-                      fontSize: 15,
-                      fontWeight: 700,
-                      color: cart.paymentAmount - cart.getTotal(0) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'
-                    }}>
-                      {formatCurrency(cart.paymentAmount - cart.getTotal(0))}
-                    </span>
-                  </div>
-                )}
+                {/* Kembalian / Selisih */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: 12, background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', marginBottom: 16 }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                    {cart.paymentMethod === 'CASH' ? 'Kembalian:' : 'Selisih / Sisa:'}
+                  </span>
+                  <span className="font-mono" style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: cart.paymentAmount - cart.getTotal(0) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'
+                  }}>
+                    {formatCurrency(cart.paymentAmount - cart.getTotal(0))}
+                  </span>
+                </div>
 
                 <div className="input-group">
                   <label className="input-label">Catatan Transaksi</label>

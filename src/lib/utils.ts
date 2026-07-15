@@ -71,8 +71,10 @@ export function truncate(str: string, length: number): string {
 export const paymentMethods = [
   { value: 'CASH', label: 'Tunai', icon: '💵' },
   { value: 'QRIS', label: 'QRIS', icon: '📱' },
-  { value: 'TRANSFER', label: 'Transfer Bank', icon: '🏦' },
-  { value: 'EWALLET', label: 'E-Wallet', icon: '📲' },
+  { value: 'DANA', label: 'DANA', icon: '🔵' },
+  { value: 'GOPAY', label: 'GoPay', icon: '🟢' },
+  { value: 'OVO', label: 'OVO', icon: '🟣' },
+  { value: 'BANK', label: 'Bank / Transfer', icon: '🏦' },
   { value: 'CARD', label: 'Kartu Debit/Kredit', icon: '💳' },
 ]
 
