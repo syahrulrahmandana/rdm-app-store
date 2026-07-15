@@ -49,12 +49,12 @@ const menuItems = [
   },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname()
   const { data: session } = useSession()
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">R</div>
         <div>
@@ -78,6 +78,7 @@ export default function Sidebar() {
                   key={item.href}
                   href={item.href}
                   className={`sidebar-link ${isActive ? 'active' : ''}`}
+                  onClick={onClose}
                 >
                   <span className="sidebar-link-icon">
                     <item.icon size={20} />

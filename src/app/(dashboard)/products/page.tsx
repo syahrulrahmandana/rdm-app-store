@@ -277,7 +277,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Filters */}
-      <div className="card" style={{ padding: 16, marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div className="card" style={{ padding: 16, marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <div className="search-box" style={{ flex: 1 }}>
           <HiOutlineMagnifyingGlass className="search-box-icon" />
           <input
@@ -290,7 +290,7 @@ export default function ProductsPage() {
         </div>
         <select
           className="select"
-          style={{ width: 200 }}
+          style={{ minWidth: 150, flex: 1, maxWidth: 250 }}
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
         >
@@ -384,7 +384,7 @@ export default function ProductsPage() {
               <button className="btn btn-icon btn-ghost" onClick={() => setIsModalOpen(false)}>×</button>
             </div>
             <form onSubmit={handleSubmit}>
-              <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="modal-body form-grid" style={{ gap: 16 }}>
                 <div className="input-group" style={{ gridColumn: 'span 2' }}>
                   <label className="input-label">Nama Produk</label>
                   <input
@@ -538,7 +538,7 @@ export default function ProductsPage() {
               <h3 style={{ fontSize: 18, fontWeight: 700 }}>Kelola Kategori Produk</h3>
               <button className="btn btn-icon btn-ghost" onClick={() => setIsCategoryModalOpen(false)}>×</button>
             </div>
-            <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            <div className="modal-body form-grid" style={{ gap: 24 }}>
               {/* Kolom Kiri: Form Tambah Kategori */}
               <div>
                 <h4 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16, color: 'var(--text-primary)' }}>

@@ -30,7 +30,7 @@ export default function SettingsPage() {
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
             <HiOutlineBuildingStorefront /> Profil Bisnis Toko
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div className="form-grid" style={{ gap: 16 }}>
             <div className="input-group" style={{ gridColumn: 'span 2' }}>
               <label className="input-label">Nama Toko</label>
               <input type="text" className="input" value={storeName} onChange={(e) => setStoreName(e.target.value)} required />

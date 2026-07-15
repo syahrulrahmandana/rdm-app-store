@@ -330,7 +330,7 @@ export default function POSPage() {
                 {/* Metode Pembayaran */}
                 <div className="input-group" style={{ marginBottom: 16 }}>
                   <label className="input-label">Pilih Metode</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                  <div className="form-grid" style={{ gap: 8 }}>
                     {paymentMethods.map((pm) => (
                       <button
                         key={pm.value}

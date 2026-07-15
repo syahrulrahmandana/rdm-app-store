@@ -177,13 +177,13 @@ export default function ReportsPage() {
           <h2 className="page-title">Laporan Penjualan & Pendapatan</h2>
           <p className="page-subtitle">Pantau performa harian, produk terlaris, dan laba kotor toko Anda</p>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', padding: '6px 12px', borderRadius: 'var(--radius-md)' }}>
             <HiOutlineCalendar color="var(--text-muted)" />
             <input
               type="date"
               className="input"
-              style={{ border: 'none', background: 'transparent', padding: 0, width: 130, color: 'var(--text-primary)' }}
+              style={{ border: 'none', background: 'transparent', padding: 0, minWidth: 120, flex: 1, maxWidth: 160, color: 'var(--text-primary)' }}
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
             />
@@ -191,7 +191,7 @@ export default function ReportsPage() {
             <input
               type="date"
               className="input"
-              style={{ border: 'none', background: 'transparent', padding: 0, width: 130, color: 'var(--text-primary)' }}
+              style={{ border: 'none', background: 'transparent', padding: 0, minWidth: 120, flex: 1, maxWidth: 160, color: 'var(--text-primary)' }}
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
             />
@@ -199,7 +199,7 @@ export default function ReportsPage() {
 
           <select
             className="select"
-            style={{ width: 120 }}
+            style={{ minWidth: 100, flex: 1, maxWidth: 150 }}
             value={groupBy}
             onChange={(e) => setGroupBy(e.target.value as any)}
           >
@@ -321,7 +321,7 @@ export default function ReportsPage() {
               <Tooltip formatter={(value: any) => formatCurrency(value)} />
             </PieChart>
           </ResponsiveContainer>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 16 }}>
+          <div className="form-grid" style={{ gap: 12, marginTop: 16 }}>
             {data.paymentMethods.map((pm, idx) => (
               <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                 <span style={{ width: 12, height: 12, borderRadius: '50%', background: COLORS[idx % COLORS.length] }} />

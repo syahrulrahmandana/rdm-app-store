@@ -17,7 +17,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/settings': { title: 'Pengaturan', subtitle: 'Konfigurasi toko & aplikasi' },
 }
 
-export default function Header() {
+export default function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const pathname = usePathname()
   const [currentTime, setCurrentTime] = useState(new Date())
 
@@ -30,6 +30,9 @@ export default function Header() {
 
   return (
     <header className="header">
+      <button className="hamburger-btn" onClick={onToggleSidebar} aria-label="Toggle menu">
+        ☰
+      </button>
       <div>
         <h1 style={{ fontSize: 18, fontWeight: 700 }}>{pageInfo.title}</h1>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -46,8 +49,10 @@ export default function Header() {
           borderRadius: 'var(--radius-md)',
           border: '1px solid var(--border-color)',
         }}>
-          {currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}
-          {' · '}
+          <span className="hide-mobile">
+            {currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}
+            {' · '}
+          </span>
           {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </div>
         <button className="btn btn-icon btn-ghost" style={{ position: 'relative' }}>
