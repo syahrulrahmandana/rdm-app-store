@@ -200,9 +200,17 @@ export default function ReportsPage() {
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Filters Toolbar */}
       <div className="page-toolbar">
-        <div>
-          <h2 className="page-title">Laporan Penjualan & Pendapatan</h2>
-          <p className="page-subtitle">Pantau performa harian, produk terlaris, dan laba kotor toko Anda</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h2 className="page-title" style={{ margin: 0 }}>Laporan Penjualan & Pendapatan</h2>
+            <span className="badge badge-purple" style={{ fontSize: 11, padding: '4px 10px', fontWeight: 600 }}>
+              {!dateFrom && !dateTo ? (
+                groupBy === 'day' ? 'Hari Ini' :
+                groupBy === 'week' ? 'Minggu Ini' : 'Bulan Ini'
+              ) : 'Rentang Kustom'}
+            </span>
+          </div>
+          <p className="page-subtitle" style={{ margin: 0 }}>Pantau performa harian, produk terlaris, dan laba kotor toko Anda</p>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', padding: '6px 12px', borderRadius: 'var(--radius-md)' }}>

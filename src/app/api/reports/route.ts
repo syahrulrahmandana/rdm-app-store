@@ -10,11 +10,41 @@ export async function GET(request: NextRequest) {
     const groupBy = searchParams.get('groupBy') || 'day' // day, week, month
 
     const where: any = { status: 'COMPLETED' }
-    if (dateFrom) where.createdAt = { ...where.createdAt, gte: new Date(dateFrom) }
-    if (dateTo) {
-      const end = new Date(dateTo)
-      end.setHours(23, 59, 59, 999)
-      where.createdAt = { ...where.createdAt, lte: end }
+
+    if (!dateFrom && !dateTo) {
+      const now = new Date()
+      if (groupBy === 'day') {
+        const start = new Date(now)
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(now)
+        end.setHours(23, 59, 59, 999)
+        where.createdAt = { gte: start, lte: end }
+      } else if (groupBy === 'week') {
+        const start = new Date(now)
+        const day = start.getDay()
+        const diff = start.getDate() - day + (day === 0 ? -6 : 1) // Adjust for Monday start
+        start.setDate(diff)
+        start.setHours(0, 0, 0, 0)
+
+        const end = new Date(start)
+        end.setDate(start.getDate() + 6)
+        end.setHours(23, 59, 59, 999)
+        where.createdAt = { gte: start, lte: end }
+      } else if (groupBy === 'month') {
+        const start = new Date(now.getFullYear(), now.getMonth(), 1)
+        start.setHours(0, 0, 0, 0)
+
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        end.setHours(23, 59, 59, 999)
+        where.createdAt = { gte: start, lte: end }
+      }
+    } else {
+      if (dateFrom) where.createdAt = { ...where.createdAt, gte: new Date(dateFrom) }
+      if (dateTo) {
+        const end = new Date(dateTo)
+        end.setHours(23, 59, 59, 999)
+        where.createdAt = { ...where.createdAt, lte: end }
+      }
     }
 
     if (type === 'sales' || type === '' ) {
