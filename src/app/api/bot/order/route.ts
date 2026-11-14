@@ -243,9 +243,17 @@ export async function POST(request: NextRequest) {
         where: { phone: { contains: cleanPhone } },
       })
       if (!customer) {
-        const displayName = customerName
-          ? (isResellerOrder ? `${customerName} [Reseller]` : customerName)
-          : (isResellerOrder ? `Reseller ${cleanPhone.slice(-4)}` : `Pelanggan ${cleanPhone.slice(-4)}`)
+        const isNameOnlyDigits = customerName && /^\d+$/.test(customerName.trim())
+        let displayName = ''
+
+        if (customerName && !isNameOnlyDigits) {
+          displayName = isResellerOrder ? `${customerName} [Reseller]` : customerName
+        } else {
+          displayName = isResellerOrder
+            ? (cleanPhone.length >= 15 ? 'Reseller WhatsApp' : `Reseller ${cleanPhone.slice(-4)}`)
+            : (cleanPhone.length >= 15 ? 'Pelanggan WhatsApp' : `Pelanggan ${cleanPhone.slice(-4)}`)
+        }
+
         customer = await prisma.customer.create({
           data: {
             name: displayName,
