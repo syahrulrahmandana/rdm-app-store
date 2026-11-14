@@ -216,14 +216,51 @@ export async function POST(request: NextRequest) {
       })
 
       const extractedPrice = extractPrice(note)
+      const requestedPrice =
+        body.price && typeof body.price === 'number' && body.price > 0
+          ? body.price
+          : extractedPrice !== null && extractedPrice > 0
+          ? extractedPrice
+          : null
+
+      const requestedProductName =
+        body.productName && typeof body.productName === 'string' && body.productName.trim()
+          ? body.productName.trim()
+          : ''
+
       let matchedProduct = matchProduct(
-        note,
-        extractedPrice,
+        requestedProductName ? `${requestedProductName} ${note}` : note,
+        requestedPrice,
         allProducts,
         isResellerOrder
       )
 
-      // Jika belum cocok, cari atau buat produk fallback
+      // Jika belum cocok di database, dan ada nama produk (misal dari list.json):
+      if (!matchedProduct && requestedProductName) {
+        // Cek apakah ada yang namanya sama persis
+        matchedProduct = allProducts.find(
+          (p) => p.name.toLowerCase() === requestedProductName.toLowerCase()
+        )
+
+        // Jika benar-benar belum pernah didaftarkan ke Web POS, daftarkan otomatis!
+        if (!matchedProduct) {
+          const autoSku = 'BOT-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+          matchedProduct = await prisma.product.create({
+            data: {
+              name: requestedProductName,
+              sku: autoSku,
+              sellPrice: requestedPrice || 0,
+              buyPrice: 0, // Admin tinggal atur modal / HPP di web kasir kapan saja
+              unit: 'AKUN',
+              stock: 999,
+              manageStock: false,
+              isActive: true,
+            },
+          })
+        }
+      }
+
+      // Jika tetap belum cocok (misal order teks bebas tanpa nama produk), gunakan fallback WA-CUSTOM
       if (!matchedProduct) {
         matchedProduct = await prisma.product.findFirst({
           where: { sku: 'WA-CUSTOM' },
@@ -234,7 +271,7 @@ export async function POST(request: NextRequest) {
             data: {
               name: 'PESANAN WHATSAPP (CUSTOM)',
               sku: 'WA-CUSTOM',
-              sellPrice: extractedPrice || 0,
+              sellPrice: requestedPrice || 0,
               buyPrice: 0,
               unit: 'AKUN',
               stock: 999,
@@ -248,16 +285,11 @@ export async function POST(request: NextRequest) {
       const store = await prisma.store.findFirst()
       const newReceiptNo = generateReceiptNo(store?.receiptPrefix || 'RDM')
       const finalPrice =
-        body.price && typeof body.price === 'number' && body.price > 0
-          ? body.price
-          : extractedPrice !== null && extractedPrice > 0
-          ? extractedPrice
+        requestedPrice !== null && requestedPrice > 0
+          ? requestedPrice
           : matchedProduct.sellPrice
 
-      const finalProductName =
-        body.productName && typeof body.productName === 'string' && body.productName.trim()
-          ? body.productName.trim()
-          : matchedProduct.name
+      const finalProductName = requestedProductName || matchedProduct.name
 
       const paymentMethod = detectPaymentMethod(note)
 
@@ -362,32 +394,77 @@ export async function POST(request: NextRequest) {
         where: { isActive: true },
       })
       const extractedPrice = extractPrice(note)
+      const requestedPrice =
+        body.price && typeof body.price === 'number' && body.price > 0
+          ? body.price
+          : extractedPrice !== null && extractedPrice > 0
+          ? extractedPrice
+          : null
+
+      const requestedProductName =
+        body.productName && typeof body.productName === 'string' && body.productName.trim()
+          ? body.productName.trim()
+          : ''
+
       let matchedProduct = matchProduct(
-        note,
-        extractedPrice,
+        requestedProductName ? `${requestedProductName} ${note}` : note,
+        requestedPrice,
         allProducts,
         isResellerOrder
       )
+
+      if (!matchedProduct && requestedProductName) {
+        matchedProduct = allProducts.find(
+          (p) => p.name.toLowerCase() === requestedProductName.toLowerCase()
+        )
+
+        if (!matchedProduct) {
+          const autoSku = 'BOT-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+          matchedProduct = await prisma.product.create({
+            data: {
+              name: requestedProductName,
+              sku: autoSku,
+              sellPrice: requestedPrice || 0,
+              buyPrice: 0,
+              unit: 'AKUN',
+              stock: 999,
+              manageStock: false,
+              isActive: true,
+            },
+          })
+        }
+      }
 
       if (!matchedProduct) {
         matchedProduct = await prisma.product.findFirst({
           where: { sku: 'WA-CUSTOM' },
         })
+
+        if (!matchedProduct) {
+          matchedProduct = await prisma.product.create({
+            data: {
+              name: 'PESANAN WHATSAPP (CUSTOM)',
+              sku: 'WA-CUSTOM',
+              sellPrice: requestedPrice || 0,
+              buyPrice: 0,
+              unit: 'AKUN',
+              stock: 999,
+              manageStock: false,
+              isActive: true,
+            },
+          })
+        }
       }
 
       const store = await prisma.store.findFirst()
       const newReceiptNo = generateReceiptNo(store?.receiptPrefix || 'RDM')
       const finalPrice =
-        body.price && typeof body.price === 'number' && body.price > 0
-          ? body.price
-          : extractedPrice !== null && extractedPrice > 0
-          ? extractedPrice
+        requestedPrice !== null && requestedPrice > 0
+          ? requestedPrice
           : matchedProduct?.sellPrice || 0
 
       const finalProductName =
-        body.productName && typeof body.productName === 'string' && body.productName.trim()
-          ? body.productName.trim()
-          : matchedProduct?.name || 'Pesanan Langsung'
+        requestedProductName || matchedProduct?.name || 'Pesanan Langsung'
 
       const directCompleted = await prisma.transaction.create({
         data: {
