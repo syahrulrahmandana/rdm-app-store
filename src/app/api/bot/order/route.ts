@@ -45,72 +45,67 @@ function matchProduct(
 
   const lowerNote = (note || '').toLowerCase()
 
-  // 1. Jika ada nominal pas dan persis cocok dengan salah satu harga produk
-  if (price) {
-    let exactPriceMatches = products.filter((p) => p.sellPrice === price)
-    if (isReseller) {
-      const resellerMatch = exactPriceMatches.find((p) =>
-        p.name.toLowerCase().includes('reseller')
-      )
-      if (resellerMatch) return resellerMatch
-    }
-    if (exactPriceMatches.length === 1) {
-      return exactPriceMatches[0]
-    }
-    // Jika ada lebih dari 1 yang harganya sama, saring lagi dengan kata kunci
-    if (exactPriceMatches.length > 1) {
-      for (const p of exactPriceMatches) {
-        const pLower = p.name.toLowerCase()
-        if (
-          (lowerNote.includes('spotify') && pLower.includes('spotify')) ||
-          (lowerNote.includes('netflix') && pLower.includes('netflix')) ||
-          (lowerNote.includes('canva') && pLower.includes('canva')) ||
-          (lowerNote.includes('capcut') && pLower.includes('capcut'))
-        ) {
-          return p
-        }
-      }
-      return exactPriceMatches[0]
+  // 1. Cari produk yang namanya persis ada di note
+  for (const product of products) {
+    const pName = product.name.toLowerCase()
+    if (product.sku === 'WA-CUSTOM' || pName.includes('pesanan whatsapp')) continue
+
+    if (lowerNote.includes(pName) || pName.includes(lowerNote.trim())) {
+      return product
     }
   }
 
-  // 2. Beri skor pencocokan kata kunci
+  // 2. Beri skor pencocokan kata kunci merek & durasi
   let bestMatch: any = null
   let highestScore = 0
 
+  const brands = [
+    { key: 'spotify', aliases: ['spotify', 'spoti', 'spot'] },
+    { key: 'netflix', aliases: ['netflix', 'netf', 'nf'] },
+    { key: 'canva', aliases: ['canva', 'canv'] },
+    { key: 'capcut', aliases: ['capcut', 'capc', 'cp'] },
+    { key: 'youtube', aliases: ['youtube', 'yt'] },
+    { key: 'alight', aliases: ['alight motion', 'alight', 'am'] },
+    { key: 'disney', aliases: ['disney', 'hotstar'] },
+    { key: 'vidio', aliases: ['vidio'] },
+    { key: 'viu', aliases: ['viu'] },
+    { key: 'wetv', aliases: ['wetv'] },
+    { key: 'bstation', aliases: ['bstation', 'bili'] },
+    { key: 'chatgpt', aliases: ['chatgpt', 'gpt'] },
+    { key: 'appmusic', aliases: ['apple music', 'appmusic'] },
+    { key: 'prime', aliases: ['prime video', 'amazon prime', 'prime'] },
+    { key: 'zoom', aliases: ['zoom'] },
+    { key: 'picsart', aliases: ['picsart'] },
+    { key: 'remini', aliases: ['remini'] },
+    { key: 'getcontact', aliases: ['getcontact', 'gtc'] },
+    { key: 'dramabox', aliases: ['dramabox'] },
+    { key: 'iqiyi', aliases: ['iqiyi'] },
+    { key: 'meitu', aliases: ['meitu'] },
+  ]
+
   for (const product of products) {
     const pName = product.name.toLowerCase()
+    if (product.sku === 'WA-CUSTOM' || pName.includes('pesanan whatsapp')) continue
+
     let score = 0
-
-    const isProductReseller =
-      pName.includes('reseller') || pName.includes('(reseller)')
-
-    // Jika ini grup Reseller, prioritaskan produk yang ada kata "reseller"
-    if (isReseller && isProductReseller) {
-      score += 35
-    } else if (!isReseller && isProductReseller) {
-      // Jika BUKAN grup reseller, kurangi skor produk reseller agar tidak terpilih
-      score -= 35
-    }
-
-    // Cek merek utama
-    const brands = [
-      { key: 'spotify', aliases: ['spotify', 'spoti', 'spot'] },
-      { key: 'netflix', aliases: ['netflix', 'netf', 'nf'] },
-      { key: 'canva', aliases: ['canva', 'canv'] },
-      { key: 'capcut', aliases: ['capcut', 'capc', 'cp'] },
-      { key: 'youtube', aliases: ['youtube', 'yt'] },
-    ]
+    let brandMatched = false
 
     for (const b of brands) {
       const productHasBrand = b.aliases.some((a) => pName.includes(a))
       const noteHasBrand = b.aliases.some((a) => lowerNote.includes(a))
       if (productHasBrand && noteHasBrand) {
-        score += 30
+        score += 50
+        brandMatched = true
+        break
       }
     }
 
-    // Cek durasi / paket
+    // Jika merek sama sekali tidak cocok, lewati
+    if (!brandMatched) {
+      continue
+    }
+
+    // Durasi / paket
     if (
       (lowerNote.includes('2 bulan') || lowerNote.includes('2b') || lowerNote.includes('2bln') || lowerNote.includes('2m')) &&
       pName.includes('2 bulan')
@@ -132,13 +127,26 @@ function matchProduct(
       score += 20
     }
 
+    // Cocok harga
+    if (price !== null && product.sellPrice === price) {
+      score += 15
+    }
+
+    // Reseller preference
+    const isProductReseller = pName.includes('reseller')
+    if (isReseller && isProductReseller) {
+      score += 30
+    } else if (!isReseller && isProductReseller) {
+      score -= 30
+    }
+
     if (score > highestScore) {
       highestScore = score
       bestMatch = product
     }
   }
 
-  if (highestScore >= 20) {
+  if (highestScore >= 45) {
     return bestMatch
   }
 
