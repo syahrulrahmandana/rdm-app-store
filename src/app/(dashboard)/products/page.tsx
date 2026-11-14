@@ -26,6 +26,10 @@ interface Product {
   category?: { name: string } | null
   manageStock: boolean
   image?: string | null
+  snk?: string | null
+  _count?: {
+    digitalAccounts: number
+  }
 }
 
 interface Category {
@@ -71,6 +75,15 @@ export default function ProductsPage() {
   const [unit, setUnit] = useState('pcs')
   const [manageStock, setManageStock] = useState(true)
   const [image, setImage] = useState<string | null>(null)
+  const [snk, setSnk] = useState('')
+
+  // Digital Accounts Vault Modal states
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
+  const [selectedProductForAccounts, setSelectedProductForAccounts] = useState<Product | null>(null)
+  const [digitalAccounts, setDigitalAccounts] = useState<any[]>([])
+  const [loadingAccounts, setLoadingAccounts] = useState(false)
+  const [newAccountsText, setNewAccountsText] = useState('')
+  const [isSavingAccounts, setIsSavingAccounts] = useState(false)
 
   // Category Management Modal states
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
@@ -123,6 +136,7 @@ export default function ProductsPage() {
     setUnit('pcs')
     setManageStock(true)
     setImage(null)
+    setSnk('')
     setIsModalOpen(true)
   }
 
@@ -139,7 +153,84 @@ export default function ProductsPage() {
     setUnit(product.unit)
     setManageStock(product.manageStock ?? true)
     setImage(product.image || null)
+    setSnk(product.snk || '')
     setIsModalOpen(true)
+  }
+
+  const handleOpenAccountModal = async (product: Product) => {
+    setSelectedProductForAccounts(product)
+    setNewAccountsText('')
+    setIsAccountModalOpen(true)
+    fetchDigitalAccounts(product.id)
+  }
+
+  const fetchDigitalAccounts = async (productId: string) => {
+    setLoadingAccounts(true)
+    try {
+      const res = await fetch(`/api/products/${productId}/accounts`)
+      const data = await res.json()
+      if (res.ok) {
+        setDigitalAccounts(data.accounts || [])
+      } else {
+        toast.error(data.error || 'Gagal memuat akun')
+      }
+    } catch (err) {
+      toast.error('Gagal mengambil data akun digital')
+    } finally {
+      setLoadingAccounts(false)
+    }
+  }
+
+  const handleSaveDigitalAccounts = async () => {
+    if (!selectedProductForAccounts) return
+    if (!newAccountsText.trim()) {
+      toast.error('Mohon masukkan minimal 1 akun')
+      return
+    }
+
+    setIsSavingAccounts(true)
+    try {
+      const res = await fetch(`/api/products/${selectedProductForAccounts.id}/accounts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: newAccountsText }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast.success(data.message || 'Akun berhasil ditambahkan!')
+        setNewAccountsText('')
+        fetchDigitalAccounts(selectedProductForAccounts.id)
+        fetchProducts() // refresh stock count on table
+      } else {
+        toast.error(data.error || 'Gagal menambahkan akun')
+      }
+    } catch (err) {
+      toast.error('Terjadi kesalahan')
+    } finally {
+      setIsSavingAccounts(false)
+    }
+  }
+
+  const handleDeleteDigitalAccount = async (accountId: string) => {
+    if (!selectedProductForAccounts) return
+    if (!confirm('Hapus akun ini dari stok?')) return
+
+    try {
+      const res = await fetch(
+        `/api/products/${selectedProductForAccounts.id}/accounts?accountId=${accountId}`,
+        { method: 'DELETE' }
+      )
+      const data = await res.json()
+      if (res.ok) {
+        toast.success('Akun dihapus dari stok')
+        fetchDigitalAccounts(selectedProductForAccounts.id)
+        fetchProducts()
+      } else {
+        toast.error(data.error || 'Gagal menghapus akun')
+      }
+    } catch (err) {
+      toast.error('Terjadi kesalahan')
+    }
   }
 
   const handleDelete = async (id: string) => {
@@ -172,6 +263,7 @@ export default function ProductsPage() {
       unit,
       manageStock,
       image,
+      snk: snk ? snk.trim() : null,
     }
 
     try {
@@ -367,9 +459,30 @@ export default function ProductsPage() {
                   </td>
                   <td>
                     {p.manageStock ? (
-                      <span className={`badge ${p.stock <= p.minStock ? 'badge-red' : 'badge-green'}`}>
-                        {p.stock} {p.unit}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                        <span className={`badge ${p.stock <= p.minStock ? 'badge-red' : 'badge-green'}`}>
+                          {p.stock} {p.unit}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: 11,
+                            height: 'auto',
+                            color: '#3B82F6',
+                            background: 'rgba(59, 130, 246, 0.08)',
+                            borderRadius: '4px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                          onClick={() => handleOpenAccountModal(p)}
+                          title="Kelola daftar akun digital untuk produk ini"
+                        >
+                          🔑 Kelola Akun ({p._count?.digitalAccounts ?? p.stock})
+                        </button>
+                      </div>
                     ) : (
                       <span className="badge badge-blue">
                         Tanpa Stok
@@ -542,6 +655,21 @@ export default function ProductsPage() {
                     disabled={!manageStock}
                     style={{ opacity: manageStock ? 1 : 0.5 }}
                   />
+                </div>
+
+                <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="input-label">Syarat & Ketentuan (SnK / Aturan Garansi)</label>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    value={snk}
+                    onChange={(e) => setSnk(e.target.value)}
+                    placeholder="Contoh:&#10;• Garansi 30 hari jika ikuti aturan&#10;• Login max 1 device&#10;• Dilarang ubah password/email"
+                    style={{ resize: 'vertical', fontFamily: 'inherit', padding: '8px 12px', fontSize: 13 }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Cukup diisi 1 kali per produk. SnK ini akan otomatis dikirimkan ke WhatsApp Anda saat pesanan diproses.
+                  </span>
                 </div>
 
                 <div className="input-group" style={{ gridColumn: 'span 2' }}>
@@ -836,6 +964,139 @@ export default function ProductsPage() {
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setIsCategoryModalOpen(false)}>
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Kelola Stok Akun Digital */}
+      {isAccountModalOpen && selectedProductForAccounts && (
+        <div className="modal-overlay">
+          <div className="modal-content animate-slide-up" style={{ maxWidth: 750 }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  🔑 Kelola Stok Akun: {selectedProductForAccounts.name}
+                </h3>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Setiap kali ada pesanan di WA dengan command &quot;proses&quot;, 1 akun yang tersedia akan otomatis dikirim ke WA pribadi Anda.
+                </p>
+              </div>
+              <button className="btn btn-icon btn-ghost" onClick={() => setIsAccountModalOpen(false)}>×</button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Form Tambah Akun Sekaligus */}
+              <div style={{ background: 'var(--bg-secondary)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <label className="input-label" style={{ fontWeight: 600, marginBottom: 6 }}>
+                  Tambah Stok Akun Sekaligus (1 Baris = 1 Akun)
+                </label>
+                <textarea
+                  className="input font-mono"
+                  rows={4}
+                  value={newAccountsText}
+                  onChange={(e) => setNewAccountsText(e.target.value)}
+                  placeholder="Contoh:&#10;user1@gmail.com|pass123&#10;user2@gmail.com|pass456&#10;user3@gmail.com|pass789"
+                  style={{ resize: 'vertical', fontSize: 13 }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    Tip: Masukkan format login bebas (email|pass, link, kode voucher, dll).
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={isSavingAccounts || !newAccountsText.trim()}
+                    onClick={handleSaveDigitalAccounts}
+                  >
+                    {isSavingAccounts ? 'Menyimpan...' : '➕ Masukkan ke Stok'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Daftar Akun yang Ada */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h4 style={{ fontSize: 14, fontWeight: 600 }}>
+                    Daftar Akun di Brankas (
+                    <span style={{ color: 'var(--accent-green)' }}>
+                      {digitalAccounts.filter((a) => a.status === 'AVAILABLE').length} Tersedia
+                    </span>
+                    {', '}
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      {digitalAccounts.filter((a) => a.status === 'SOLD').length} Terjual
+                    </span>
+                    )
+                  </h4>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ fontSize: 12, padding: '4px 8px', height: 'auto' }}
+                    onClick={() => fetchDigitalAccounts(selectedProductForAccounts.id)}
+                  >
+                    🔄 Refresh
+                  </button>
+                </div>
+
+                {loadingAccounts ? (
+                  <div className="skeleton" style={{ height: 150 }} />
+                ) : digitalAccounts.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)', fontSize: 13 }}>
+                    Belum ada akun di dalam stok. Masukkan akun baru pada form di atas.
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+                    <table className="table" style={{ fontSize: 13 }}>
+                      <thead>
+                        <tr>
+                          <th>Status</th>
+                          <th>Data Akun</th>
+                          <th>Waktu</th>
+                          <th style={{ textAlign: 'right' }}>Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {digitalAccounts.map((acc) => (
+                          <tr key={acc.id} style={{ opacity: acc.status === 'SOLD' ? 0.6 : 1 }}>
+                            <td>
+                              {acc.status === 'AVAILABLE' ? (
+                                <span className="badge badge-green">Tersedia</span>
+                              ) : (
+                                <span className="badge badge-blue">
+                                  Terjual ({acc.transaction?.receiptNo || 'POS'})
+                                </span>
+                              )}
+                            </td>
+                            <td className="font-mono" style={{ wordBreak: 'break-all', maxWidth: 280 }}>
+                              {acc.accountData}
+                            </td>
+                            <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                              {new Date(acc.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              {acc.status === 'AVAILABLE' && (
+                                <button
+                                  type="button"
+                                  className="btn btn-icon btn-ghost"
+                                  style={{ color: 'var(--accent-red)' }}
+                                  onClick={() => handleDeleteDigitalAccount(acc.id)}
+                                  title="Hapus akun dari stok"
+                                >
+                                  <HiOutlineTrash size={14} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setIsAccountModalOpen(false)}>
                 Tutup
               </button>
             </div>

@@ -45,6 +45,7 @@ export async function PUT(
         minStock: parseInt(body.minStock) || 5,
         unit: body.unit || 'pcs',
         image: body.image || null,
+        snk: body.snk !== undefined ? (body.snk ? String(body.snk).trim() : null) : undefined,
         isActive: body.isActive ?? true,
         manageStock: body.manageStock ?? true,
       },

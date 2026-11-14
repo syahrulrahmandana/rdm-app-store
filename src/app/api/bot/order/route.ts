@@ -333,6 +333,55 @@ export async function POST(request: NextRequest) {
         },
       })
 
+      // Pengelolaan Stok Akun Digital (HANYA AKTIF JIKA manageStock === true)
+      let accountInfo = {
+        hasStockManagement: false,
+        accountData: null as string | null,
+        snk: matchedProduct?.snk || null as string | null,
+        remainingStock: matchedProduct?.stock ?? 0,
+        isOutOfStock: false,
+      }
+
+      if (matchedProduct?.manageStock) {
+        accountInfo.hasStockManagement = true
+
+        const availableAccount = await prisma.digitalAccount.findFirst({
+          where: {
+            productId: matchedProduct.id,
+            status: 'AVAILABLE',
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+
+        if (availableAccount) {
+          // Kunci akun untuk transaksi ini & ubah status menjadi SOLD
+          await prisma.digitalAccount.update({
+            where: { id: availableAccount.id },
+            data: {
+              status: 'SOLD',
+              transactionId: transaction.id,
+              soldAt: new Date(),
+            },
+          })
+
+          const remaining = await prisma.digitalAccount.count({
+            where: { productId: matchedProduct.id, status: 'AVAILABLE' },
+          })
+
+          await prisma.product.update({
+            where: { id: matchedProduct.id },
+            data: { stock: remaining },
+          })
+
+          accountInfo.accountData = availableAccount.accountData
+          accountInfo.remainingStock = remaining
+          accountInfo.isOutOfStock = false
+        } else {
+          accountInfo.isOutOfStock = true
+          accountInfo.remainingStock = 0
+        }
+      }
+
       return NextResponse.json({
         success: true,
         action: 'proses',
@@ -342,6 +391,11 @@ export async function POST(request: NextRequest) {
         customerName: customer?.name || customerPhone,
         customerPhone: cleanPhone,
         status: 'PENDING',
+        hasStockManagement: accountInfo.hasStockManagement,
+        accountData: accountInfo.accountData,
+        snk: accountInfo.snk,
+        remainingStock: accountInfo.remainingStock,
+        isOutOfStock: accountInfo.isOutOfStock,
         message: 'Transaksi berhasil dicatat ke Web POS dengan status PENDING',
       })
     }
@@ -403,6 +457,11 @@ export async function POST(request: NextRequest) {
           include: { items: true, customer: true },
         })
 
+        const assignedAccount = await prisma.digitalAccount.findFirst({
+          where: { transactionId: pendingTx.id },
+          include: { product: true },
+        })
+
         return NextResponse.json({
           success: true,
           action: 'done',
@@ -411,6 +470,9 @@ export async function POST(request: NextRequest) {
           total: updated.total,
           customerName: updated.customer?.name || customerPhone,
           status: 'COMPLETED',
+          hasStockManagement: Boolean(assignedAccount),
+          accountData: assignedAccount?.accountData || null,
+          snk: assignedAccount?.product?.snk || null,
           message: 'Transaksi berhasil diselesaikan di Web POS',
         })
       }

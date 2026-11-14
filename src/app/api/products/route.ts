@@ -30,7 +30,16 @@ export async function GET(request: NextRequest) {
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
-        include: { category: true },
+        include: {
+          category: true,
+          _count: {
+            select: {
+              digitalAccounts: {
+                where: { status: 'AVAILABLE' },
+              },
+            },
+          },
+        },
         orderBy: { [sortBy]: sortDir },
         skip: (page - 1) * limit,
         take: limit,
@@ -66,6 +75,7 @@ export async function POST(request: NextRequest) {
         minStock: parseInt(body.minStock) || 5,
         unit: body.unit || 'pcs',
         image: body.image || null,
+        snk: body.snk ? String(body.snk).trim() : null,
         manageStock: body.manageStock !== undefined ? body.manageStock : true,
       },
       include: { category: true },
