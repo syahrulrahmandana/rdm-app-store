@@ -334,7 +334,7 @@ export async function POST(request: NextRequest) {
       })
 
       // Pengelolaan Stok Akun Digital (HANYA AKTIF JIKA manageStock === true)
-      let accountInfo = {
+      const accountInfo = {
         hasStockManagement: false,
         accountData: null as string | null,
         snk: matchedProduct?.snk || null as string | null,
