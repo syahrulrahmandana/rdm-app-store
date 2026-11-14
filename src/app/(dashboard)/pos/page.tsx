@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useCartStore } from '@/stores/cart-store'
 import { formatCurrency, formatNumber, paymentMethods } from '@/lib/utils'
 import {
@@ -8,6 +8,7 @@ import {
   HiOutlineTrash,
   HiOutlineShoppingBag,
   HiOutlineCheckCircle,
+  HiOutlineArrowsUpDown,
 } from 'react-icons/hi2'
 import toast from 'react-hot-toast'
 import { useSession } from 'next-auth/react'
@@ -45,6 +46,7 @@ export default function POSPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
+  const [sortBy, setSortBy] = useState<'newest' | 'a-z' | 'z-a' | 'price_low' | 'price_high'>('newest')
 
   // Cart actions & state from Zustand
   const cart = useCartStore()
@@ -56,13 +58,35 @@ export default function POSPage() {
   const [lastTransaction, setLastTransaction] = useState<any>(null)
 
   useEffect(() => {
-    fetchProducts()
     fetchCategories()
-  }, [search, selectedCategory])
+  }, [])
+
+  useEffect(() => {
+    fetchProducts()
+  }, [search, selectedCategory, sortBy])
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch(`/api/products?search=${search}&categoryId=${selectedCategory}`)
+      let sortField = 'createdAt'
+      let sortDirection = 'desc'
+
+      if (sortBy === 'a-z') {
+        sortField = 'name'
+        sortDirection = 'asc'
+      } else if (sortBy === 'z-a') {
+        sortField = 'name'
+        sortDirection = 'desc'
+      } else if (sortBy === 'price_low') {
+        sortField = 'sellPrice'
+        sortDirection = 'asc'
+      } else if (sortBy === 'price_high') {
+        sortField = 'sellPrice'
+        sortDirection = 'desc'
+      }
+
+      const res = await fetch(
+        `/api/products?search=${encodeURIComponent(search)}&categoryId=${selectedCategory}&sortBy=${sortField}&sortDir=${sortDirection}&limit=250`
+      )
       const data = await res.json()
       if (data.products) {
         setProducts(data.products)
@@ -71,6 +95,16 @@ export default function POSPage() {
       toast.error('Gagal mengambil data produk')
     }
   }
+
+  const sortedProducts = useMemo(() => {
+    return [...products].sort((a, b) => {
+      if (sortBy === 'a-z') return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+      if (sortBy === 'z-a') return b.name.localeCompare(a.name, undefined, { sensitivity: 'base' })
+      if (sortBy === 'price_low') return a.sellPrice - b.sellPrice
+      if (sortBy === 'price_high') return b.sellPrice - a.sellPrice
+      return 0 // 'newest' uses server order (createdAt desc)
+    })
+  }, [products, sortBy])
 
   const fetchCategories = async () => {
     try {
@@ -151,9 +185,9 @@ export default function POSPage() {
     <div className="pos-layout animate-fade-in">
       {/* Kiri: Katalog Produk */}
       <div className="pos-products">
-        {/* Search & Categories */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-          <div className="search-box" style={{ flex: 1 }}>
+        {/* Search & Sort Filter */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="search-box" style={{ flex: '1 1 240px', minWidth: 200 }}>
             <HiOutlineMagnifyingGlass className="search-box-icon" />
             <input
               type="text"
@@ -162,6 +196,38 @@ export default function POSPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </div>
+
+          <div style={{ position: 'relative', width: '185px', flexShrink: 0 }}>
+            <HiOutlineArrowsUpDown
+              style={{
+                position: 'absolute',
+                left: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text-muted)',
+                fontSize: 16,
+                pointerEvents: 'none',
+              }}
+            />
+            <select
+              className="select"
+              style={{
+                paddingLeft: '34px',
+                fontSize: 13,
+                height: '42px',
+                cursor: 'pointer',
+              }}
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              title="Urutkan Produk"
+            >
+              <option value="newest">Terbaru</option>
+              <option value="a-z">Nama: A - Z</option>
+              <option value="z-a">Nama: Z - A</option>
+              <option value="price_low">Harga: Termurah</option>
+              <option value="price_high">Harga: Termahal</option>
+            </select>
           </div>
         </div>
 
@@ -195,7 +261,7 @@ export default function POSPage() {
 
         {/* Grid Katalog */}
         <div className="pos-product-grid">
-          {products.map((p) => {
+          {sortedProducts.map((p) => {
             const isOutOfStock = p.manageStock && p.stock <= 0
             return (
               <div
@@ -251,6 +317,14 @@ export default function POSPage() {
             )
           })}
         </div>
+
+        {sortedProducts.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 36, marginBottom: 8, opacity: 0.5 }}>🔍</div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Produk tidak ditemukan</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>Coba ubah kata kunci pencarian atau kategori</div>
+          </div>
+        )}
       </div>
 
       {/* Kanan: Keranjang Kasir */}
