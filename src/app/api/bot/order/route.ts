@@ -34,11 +34,12 @@ function detectPaymentMethod(text: string): string {
   return 'QRIS'
 }
 
-// Helper: Pencocokan Cerdas Kata Kunci Produk
+// Helper: Pencocokan Cerdas Kata Kunci Produk (Mendukung Varian Reseller)
 function matchProduct(
   note: string,
   price: number | null,
-  products: any[]
+  products: any[],
+  isReseller: boolean = false
 ): any | null {
   if (!products || products.length === 0) return null
 
@@ -46,7 +47,13 @@ function matchProduct(
 
   // 1. Jika ada nominal pas dan persis cocok dengan salah satu harga produk
   if (price) {
-    const exactPriceMatches = products.filter((p) => p.sellPrice === price)
+    let exactPriceMatches = products.filter((p) => p.sellPrice === price)
+    if (isReseller) {
+      const resellerMatch = exactPriceMatches.find((p) =>
+        p.name.toLowerCase().includes('reseller')
+      )
+      if (resellerMatch) return resellerMatch
+    }
     if (exactPriceMatches.length === 1) {
       return exactPriceMatches[0]
     }
@@ -74,6 +81,17 @@ function matchProduct(
   for (const product of products) {
     const pName = product.name.toLowerCase()
     let score = 0
+
+    const isProductReseller =
+      pName.includes('reseller') || pName.includes('(reseller)')
+
+    // Jika ini grup Reseller, prioritaskan produk yang ada kata "reseller"
+    if (isReseller && isProductReseller) {
+      score += 35
+    } else if (!isReseller && isProductReseller) {
+      // Jika BUKAN grup reseller, kurangi skor produk reseller agar tidak terpilih
+      score -= 35
+    }
 
     // Cek merek utama
     const brands = [
@@ -148,7 +166,12 @@ export async function POST(request: NextRequest) {
       customerName = '',
       groupName = '',
       receiptNo = '',
+      isReseller = false,
     } = body
+
+    // Deteksi jika dari nama grup ada kata reseller / grosir
+    const isResellerOrder =
+      Boolean(isReseller) || Boolean(groupName && /reseller|grosir/i.test(groupName))
 
     // Ambil default admin user untuk relasi userId di Transaction
     const adminUser =
@@ -172,9 +195,12 @@ export async function POST(request: NextRequest) {
         where: { phone: { contains: cleanPhone } },
       })
       if (!customer) {
+        const displayName = customerName
+          ? (isResellerOrder ? `${customerName} [Reseller]` : customerName)
+          : (isResellerOrder ? `Reseller ${cleanPhone.slice(-4)}` : `Pelanggan ${cleanPhone.slice(-4)}`)
         customer = await prisma.customer.create({
           data: {
-            name: customerName || `Pelanggan ${cleanPhone.slice(-4)}`,
+            name: displayName,
             phone: cleanPhone,
           },
         })
@@ -190,7 +216,12 @@ export async function POST(request: NextRequest) {
       })
 
       const extractedPrice = extractPrice(note)
-      let matchedProduct = matchProduct(note, extractedPrice, allProducts)
+      let matchedProduct = matchProduct(
+        note,
+        extractedPrice,
+        allProducts,
+        isResellerOrder
+      )
 
       // Jika belum cocok, cari atau buat produk fallback
       if (!matchedProduct) {
@@ -235,7 +266,7 @@ export async function POST(request: NextRequest) {
           paymentAmount: finalPrice,
           changeAmount: 0,
           status: 'PENDING',
-          note: `[WA Bot] ${groupName ? `(${groupName}) ` : ''}${note || 'Pesanan WhatsApp'}`,
+          note: `[WA Bot${isResellerOrder ? ' (Reseller)' : ''}] ${groupName ? `(${groupName}) ` : ''}${note || 'Pesanan WhatsApp'}`,
           items: {
             create: [
               {
@@ -324,7 +355,12 @@ export async function POST(request: NextRequest) {
         where: { isActive: true },
       })
       const extractedPrice = extractPrice(note)
-      let matchedProduct = matchProduct(note, extractedPrice, allProducts)
+      let matchedProduct = matchProduct(
+        note,
+        extractedPrice,
+        allProducts,
+        isResellerOrder
+      )
 
       if (!matchedProduct) {
         matchedProduct = await prisma.product.findFirst({
