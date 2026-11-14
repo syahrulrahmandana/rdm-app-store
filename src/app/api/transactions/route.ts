@@ -8,14 +8,25 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
     const search = searchParams.get('search') || ''
+    const statusParam = searchParams.get('status')
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
     const paymentMethod = searchParams.get('paymentMethod')
 
-    const where: any = { status: 'COMPLETED' }
+    const where: any = {}
+    if (statusParam && statusParam !== 'ALL') {
+      where.status = statusParam
+    } else if (!statusParam) {
+      where.status = 'COMPLETED'
+    }
 
     if (search) {
-      where.receiptNo = { contains: search }
+      where.OR = [
+        { receiptNo: { contains: search } },
+        { customer: { name: { contains: search } } },
+        { customer: { phone: { contains: search } } },
+        { note: { contains: search } },
+      ]
     }
 
     if (dateFrom) {

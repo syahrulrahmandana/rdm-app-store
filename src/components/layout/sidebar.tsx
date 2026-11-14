@@ -14,6 +14,7 @@ import {
   HiOutlineCog6Tooth,
   HiOutlineUserGroup,
   HiOutlineArrowRightOnRectangle,
+  HiOutlineClipboardDocumentList,
 } from 'react-icons/hi2'
 import { getInitials } from '@/lib/utils'
 
@@ -23,6 +24,7 @@ const menuItems = [
     items: [
       { href: '/dashboard', label: 'Dashboard', icon: HiOutlineHome },
       { href: '/pos', label: 'Kasir (POS)', icon: HiOutlineShoppingCart },
+      { href: '/transactions', label: 'Pesanan & Transaksi', icon: HiOutlineClipboardDocumentList },
     ],
   },
   {
