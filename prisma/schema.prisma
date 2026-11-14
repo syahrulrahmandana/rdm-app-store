@@ -49,6 +49,7 @@ model Category {
   description String?
   icon        String?   @default("📦")
   color       String?   @default("#3B82F6")
+  image       String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

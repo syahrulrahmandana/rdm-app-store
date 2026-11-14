@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
         description: body.description || null,
         icon: body.icon || '📦',
         color: body.color || '#3B82F6',
+        image: body.image || null,
       },
     })
     return NextResponse.json(category, { status: 201 })

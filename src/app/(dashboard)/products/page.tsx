@@ -23,7 +23,7 @@ interface Product {
   minStock: number
   unit: string
   categoryId: string | null
-  category?: { name: string } | null
+  category?: { id?: string; name: string; image?: string | null; icon?: string | null; color?: string | null } | null
   manageStock: boolean
   image?: string | null
   snk?: string | null
@@ -37,6 +37,7 @@ interface Category {
   name: string
   icon: string | null
   color: string | null
+  image?: string | null
   description: string | null
   _count?: {
     products: number
@@ -91,6 +92,7 @@ export default function ProductsPage() {
   const [catDesc, setCatDesc] = useState('')
   const [catIcon, setCatIcon] = useState('📦')
   const [catColor, setCatColor] = useState('#3B82F6')
+  const [catImage, setCatImage] = useState<string | null>(null)
   const [isSubmittingCat, setIsSubmittingCat] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
 
@@ -307,6 +309,7 @@ export default function ProductsPage() {
           description: catDesc || null,
           icon: catIcon,
           color: catColor,
+          image: catImage || null,
         }),
       })
 
@@ -317,6 +320,7 @@ export default function ProductsPage() {
         setCatDesc('')
         setCatIcon('📦')
         setCatColor('#3B82F6')
+        setCatImage(null)
         setEditingCategory(null)
         fetchCategories()
         fetchProducts() // refresh categories on products list dropdown
@@ -431,15 +435,21 @@ export default function ProductsPage() {
                 <tr key={p.id}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      {p.image ? (
-                        <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)', flexShrink: 0 }}>
-                          <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        </div>
-                      ) : (
-                        <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, border: '1px solid var(--border-color)', flexShrink: 0 }}>
-                          📦
-                        </div>
-                      )}
+                      {(() => {
+                        const effectiveImg = p.image || p.category?.image
+                        if (effectiveImg) {
+                          return (
+                            <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)', flexShrink: 0 }}>
+                              <img src={effectiveImg} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            </div>
+                          )
+                        }
+                        return (
+                          <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, border: '1px solid var(--border-color)', flexShrink: 0 }}>
+                            {p.category?.icon || '📦'}
+                          </div>
+                        )
+                      })()}
                       <div>
                         <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</div>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Unit: {p.unit}</span>
@@ -451,7 +461,14 @@ export default function ProductsPage() {
                     {p.barcode && <div className="font-mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.barcode}</div>}
                   </td>
                   <td>
-                    <span className="badge badge-blue">{p.category?.name || 'Umum'}</span>
+                    <span className="badge badge-blue" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      {p.category?.image ? (
+                        <img src={p.category.image} alt="" style={{ width: 14, height: 14, borderRadius: 2, objectFit: 'cover' }} />
+                      ) : (
+                        <span>{p.category?.icon || '📦'}</span>
+                      )}
+                      <span>{p.category?.name || 'Umum'}</span>
+                    </span>
                   </td>
                   <td className="font-mono">{formatCurrency(p.buyPrice)}</td>
                   <td className="font-mono" style={{ color: 'var(--accent-green)', fontWeight: 600 }}>
@@ -675,42 +692,65 @@ export default function ProductsPage() {
                 <div className="input-group" style={{ gridColumn: 'span 2' }}>
                   <label className="input-label">Foto / Gambar Produk</label>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    {image && (
-                      <div style={{ width: 60, height: 60, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)', flexShrink: 0 }}>
-                        <img src={image} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    {image ? (
+                      <div style={{ width: 60, height: 60, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '2px solid var(--primary-color)', flexShrink: 0 }}>
+                        <img src={image} alt="Preview Khusus" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
-                    )}
-                    <div style={{ flex: 1, display: 'flex', gap: 8 }}>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) {
-                            if (file.size > 2 * 1024 * 1024) {
-                              toast.error('Ukuran file maksimal adalah 2MB')
-                              return
+                    ) : (() => {
+                      const selCat = categories.find((c) => c.id === categoryId)
+                      if (selCat?.image) {
+                        return (
+                          <div style={{ width: 60, height: 60, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '2px dashed var(--accent-green)', flexShrink: 0 }} title={`Mewarisi foto dari kategori ${selCat.name}`}>
+                            <img src={selCat.image} alt={selCat.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          </div>
+                        )
+                      }
+                      return null
+                    })()}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              if (file.size > 2 * 1024 * 1024) {
+                                toast.error('Ukuran file maksimal adalah 2MB')
+                                return
+                              }
+                              const reader = new FileReader()
+                              reader.onloadend = () => {
+                                setImage(reader.result as string)
+                              }
+                              reader.readAsDataURL(file)
                             }
-                            const reader = new FileReader()
-                            reader.onloadend = () => {
-                              setImage(reader.result as string)
-                            }
-                            reader.readAsDataURL(file)
-                          }
-                        }}
-                        className="input"
-                        style={{ padding: '6px 12px' }}
-                      />
-                      {image && (
-                        <button
-                          type="button"
-                          className="btn btn-ghost"
-                          onClick={() => setImage(null)}
-                          style={{ color: 'var(--accent-red)' }}
-                        >
-                          Hapus
-                        </button>
-                      )}
+                          }}
+                          className="input"
+                          style={{ padding: '6px 12px' }}
+                        />
+                        {image && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => setImage(null)}
+                            style={{ color: 'var(--accent-red)' }}
+                          >
+                            Hapus
+                          </button>
+                        )}
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {image
+                          ? '✅ Menggunakan foto khusus untuk varian produk ini.'
+                          : (() => {
+                              const selCat = categories.find((c) => c.id === categoryId)
+                              if (selCat?.image) {
+                                return `✨ Otomatis mewarisi foto dari Kategori "${selCat.name}". Tidak perlu upload lagi kecuali ingin foto berbeda.`
+                              }
+                              return 'Opsional. Jika foto kategori sudah diatur, produk ini otomatis memakai foto kategorinya.'
+                            })()}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -764,6 +804,56 @@ export default function ProductsPage() {
                       onChange={(e) => setCatDesc(e.target.value)}
                       placeholder="Deskripsi singkat..."
                     />
+                  </div>
+
+                  <div className="input-group">
+                    <label className="input-label">Foto / Gambar Kategori</label>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      {catImage ? (
+                        <div style={{ width: 56, height: 56, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '2px solid var(--border-active)', flexShrink: 0 }}>
+                          <img src={catImage} alt="Preview Kategori" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                      ) : (
+                        <div style={{ width: 56, height: 56, borderRadius: 'var(--radius-md)', background: `${catColor}20`, border: `2px dashed ${catColor}60`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>
+                          {catIcon || '📦'}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              if (file.size > 2 * 1024 * 1024) {
+                                toast.error('Ukuran gambar maksimal 2MB')
+                                return
+                              }
+                              const reader = new FileReader()
+                              reader.onloadend = () => {
+                                setCatImage(reader.result as string)
+                              }
+                              reader.readAsDataURL(file)
+                            }
+                          }}
+                          className="input"
+                          style={{ padding: '6px 12px', fontSize: 12 }}
+                        />
+                        {catImage && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => setCatImage(null)}
+                            style={{ color: 'var(--accent-red)', alignSelf: 'flex-start', padding: '2px 8px', fontSize: 11 }}
+                          >
+                            Hapus Foto
+                          </button>
+                        )}
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          💡 Foto ini otomatis menjadi ikon kategori & foto default semua produk di kategori ini.
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="input-group">
@@ -850,6 +940,7 @@ export default function ProductsPage() {
                           setCatDesc('')
                           setCatIcon('📦')
                           setCatColor('#3B82F6')
+                          setCatImage(null)
                         }}
                       >
                         Batal
@@ -893,10 +984,19 @@ export default function ProductsPage() {
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: 20,
-                            flexShrink: 0
+                            flexShrink: 0,
+                            overflow: 'hidden'
                           }}
                         >
-                          {c.icon || '📦'}
+                          {c.image ? (
+                            <img
+                              src={c.image}
+                              alt={c.name}
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            c.icon || '📦'
+                          )}
                         </div>
 
                         {/* Detail Kategori */}
@@ -934,6 +1034,7 @@ export default function ProductsPage() {
                               setCatDesc(c.description || '')
                               setCatIcon(c.icon || '📦')
                               setCatColor(c.color || '#3B82F6')
+                              setCatImage(c.image || null)
                             }}
                             title="Edit Kategori"
                           >

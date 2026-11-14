@@ -24,12 +24,19 @@ interface Product {
   categoryId: string | null
   manageStock: boolean
   image: string | null
+  category?: {
+    id?: string
+    name?: string
+    icon?: string | null
+    image?: string | null
+  } | null
 }
 
 interface Category {
   id: string
   name: string
   icon: string | null
+  image?: string | null
 }
 
 export default function POSPage() {
@@ -170,8 +177,18 @@ export default function POSPage() {
               key={c.id}
               className={`category-chip ${selectedCategory === c.id ? 'active' : ''}`}
               onClick={() => setSelectedCategory(c.id)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              {c.icon} {c.name}
+              {c.image ? (
+                <img
+                  src={c.image}
+                  alt={c.name}
+                  style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }}
+                />
+              ) : (
+                c.icon ? <span>{c.icon}</span> : null
+              )}
+              <span>{c.name}</span>
             </button>
           ))}
         </div>
@@ -194,6 +211,7 @@ export default function POSPage() {
                       stock: p.stock,
                       sku: p.sku,
                       manageStock: p.manageStock,
+                      image: p.image || p.category?.image || undefined,
                     })
                   }
                 }}
@@ -210,10 +228,14 @@ export default function POSPage() {
                   overflow: 'hidden',
                   border: '1px solid var(--border-color)',
                 }}>
-                  {p.image ? (
-                    <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {p.image || p.category?.image ? (
+                    <img
+                      src={(p.image || p.category?.image)!}
+                      alt={p.name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
                   ) : (
-                    '📦'
+                    p.category?.icon || '📦'
                   )}
                 </div>
                 <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', marginTop: 4 }}>

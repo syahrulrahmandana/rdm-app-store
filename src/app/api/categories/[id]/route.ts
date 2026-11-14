@@ -20,6 +20,7 @@ export async function PUT(
         description: body.description || null,
         icon: body.icon || '📦',
         color: body.color || '#3B82F6',
+        image: body.image !== undefined ? (body.image || null) : undefined,
       },
     })
 
