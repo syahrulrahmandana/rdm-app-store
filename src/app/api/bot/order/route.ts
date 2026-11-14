@@ -43,7 +43,12 @@ function matchProduct(
 ): any | null {
   if (!products || products.length === 0) return null
 
-  const lowerNote = (note || '').toLowerCase()
+  const rawLower = (note || '').toLowerCase()
+  const lowerNote = rawLower
+    .replace(/(\d+)\s*(bulan|bln)/g, '$1 bulan')
+    .replace(/(\d+)\s*(tahun|thn|th)/g, '$1 tahun')
+    .replace(/(\d+)\s*(hari|hr)/g, '$1 hari')
+    .replace(/(\d+)\s*(minggu|mgg)/g, '$1 minggu')
 
   // 1. Cari produk yang namanya persis ada di note
   for (const product of products) {
@@ -91,8 +96,14 @@ function matchProduct(
     let brandMatched = false
 
     for (const b of brands) {
-      const productHasBrand = b.aliases.some((a) => pName.includes(a))
-      const noteHasBrand = b.aliases.some((a) => lowerNote.includes(a))
+      const productHasBrand = b.aliases.some((a) => {
+        if (a.length <= 4) return new RegExp(`\\b${a}\\b`, 'i').test(pName)
+        return pName.includes(a)
+      })
+      const noteHasBrand = b.aliases.some((a) => {
+        if (a.length <= 4) return new RegExp(`\\b${a}\\b`, 'i').test(lowerNote)
+        return lowerNote.includes(a)
+      })
       if (productHasBrand && noteHasBrand) {
         score += 50
         brandMatched = true
@@ -103,6 +114,14 @@ function matchProduct(
     // Jika merek sama sekali tidak cocok, lewati
     if (!brandMatched) {
       continue
+    }
+
+    // Varian paket (Famplan, Individu, 1P1U, 1P2U, dsb)
+    const variantTags = ['famplan', 'individu', 'indplan', '1p1u', '1p2u', 'semipriv', 'private', 'sharing', 'head']
+    for (const vt of variantTags) {
+      if (lowerNote.includes(vt) && pName.includes(vt)) {
+        score += 25
+      }
     }
 
     // Durasi / paket
@@ -123,6 +142,27 @@ function matchProduct(
     if (
       (lowerNote.includes('1u') || lowerNote.includes('1u1b') || lowerNote.includes('1 user')) &&
       pName.includes('1u')
+    ) {
+      score += 20
+    }
+
+    if (
+      (lowerNote.includes('1 tahun') || lowerNote.includes('1th') || lowerNote.includes('1thn')) &&
+      (pName.includes('1 tahun') || pName.includes('1 th'))
+    ) {
+      score += 20
+    }
+
+    if (
+      (lowerNote.includes('7 hari') || lowerNote.includes('7hari')) &&
+      pName.includes('7 hari')
+    ) {
+      score += 20
+    }
+
+    if (
+      (lowerNote.includes('30 hari') || lowerNote.includes('30hari')) &&
+      pName.includes('30 hari')
     ) {
       score += 20
     }
