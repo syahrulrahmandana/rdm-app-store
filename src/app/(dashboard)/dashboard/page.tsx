@@ -250,7 +250,7 @@ export default function DashboardPage() {
                       </span>
                     </td>
                     <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      {new Date(tx.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(tx.createdAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })}
                     </td>
                   </tr>
                 ))}

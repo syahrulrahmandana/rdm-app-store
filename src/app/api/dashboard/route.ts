@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getWIBStartOfDay } from '@/lib/date-wib'
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,11 +8,10 @@ export async function GET(request: NextRequest) {
     const period = parseInt(searchParams.get('period') || '7')
 
     const now = new Date()
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const startOfPeriod = new Date(now)
-    startOfPeriod.setDate(startOfPeriod.getDate() - period)
+    const startOfToday = getWIBStartOfDay(now)
+    const startOfPeriod = new Date(startOfToday.getTime() - (period - 1) * 24 * 60 * 60 * 1000)
 
-    // Today's stats
+    // Today's stats (sejak 00:00:00 WIB hari ini)
     const todayTransactions = await prisma.transaction.findMany({
       where: {
         createdAt: { gte: startOfToday },
@@ -59,14 +59,13 @@ export async function GET(request: NextRequest) {
 
     const salesByDay: Record<string, { total: number; count: number }> = {}
     for (let i = 0; i < period; i++) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - (period - 1 - i))
-      const key = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+      const d = new Date(startOfPeriod.getTime() + i * 24 * 60 * 60 * 1000)
+      const key = d.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short' })
       salesByDay[key] = { total: 0, count: 0 }
     }
 
     periodTransactions.forEach((t) => {
-      const key = new Date(t.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+      const key = new Date(t.createdAt).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short' })
       if (salesByDay[key]) {
         salesByDay[key].total += t.total
         salesByDay[key].count += 1

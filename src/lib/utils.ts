@@ -7,12 +7,15 @@ export function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
+import { getWIBDateParts } from './date-wib'
+
 export function formatNumber(num: number): string {
   return new Intl.NumberFormat('id-ID').format(num)
 }
 
 export function formatDate(date: Date | string): string {
   return new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
     day: '2-digit',
     month: 'long',
     year: 'numeric',
@@ -21,6 +24,7 @@ export function formatDate(date: Date | string): string {
 
 export function formatDateTime(date: Date | string): string {
   return new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -31,6 +35,7 @@ export function formatDateTime(date: Date | string): string {
 
 export function formatTime(date: Date | string): string {
   return new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -38,11 +43,11 @@ export function formatTime(date: Date | string): string {
 }
 
 export function generateReceiptNo(prefix: string = 'RDM'): string {
-  const now = new Date()
-  const date = now.toISOString().slice(0, 10).replace(/-/g, '')
-  const time = now.toTimeString().slice(0, 8).replace(/:/g, '')
+  const parts = getWIBDateParts()
+  const dateStr = `${parts.year}${String(parts.month).padStart(2, '0')}${String(parts.day).padStart(2, '0')}`
+  const timeStr = `${String(parts.hour).padStart(2, '0')}${String(parts.minute).padStart(2, '0')}${String(parts.second).padStart(2, '0')}`
   const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
-  return `${prefix}-${date}-${time}-${random}`
+  return `${prefix}-${dateStr}-${timeStr}-${random}`
 }
 
 export function generateSKU(categoryPrefix: string = 'PRD'): string {

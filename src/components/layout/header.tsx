@@ -115,10 +115,10 @@ export default function Header({ onToggleSidebar }: { onToggleSidebar: () => voi
           border: '1px solid var(--border-color)',
         }}>
           <span className="hide-mobile">
-            {currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}
+            {currentTime.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}
             {' · '}
           </span>
-          {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          {currentTime.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </div>
 
         {/* Notification Bell Button */}

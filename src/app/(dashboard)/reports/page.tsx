@@ -120,6 +120,7 @@ export default function ReportsPage() {
     csvContent += 'Nomor Struk,Tanggal & Waktu,Kasir,Metode Pembayaran,Jumlah Barang,Total Belanja,Keuntungan (Profit)\n'
     data.transactions.forEach((t) => {
       const formattedDate = new Date(t.createdAt).toLocaleString('id-ID', {
+        timeZone: 'Asia/Jakarta',
         day: '2-digit',
         month: 'short',
         year: 'numeric',
@@ -387,7 +388,7 @@ export default function ReportsPage() {
             <tbody>
               {data.transactions.map((tx) => (
                 <tr key={tx.id}>
-                  <td>{new Date(tx.createdAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                  <td>{new Date(tx.createdAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'short', timeStyle: 'short' })}</td>
                   <td className="font-mono" style={{ fontWeight: 600 }}>{tx.receiptNo}</td>
                   <td>{tx.userName}</td>
                   <td>{tx.itemCount} item</td>

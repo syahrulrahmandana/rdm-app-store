@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import {
+  getWIBStartOfDay,
+  getWIBEndOfDay,
+  getWIBStartOfWeek,
+  getWIBEndOfWeek,
+  getWIBStartOfMonth,
+  getWIBEndOfMonth,
+  parseWIBDateStart,
+  parseWIBDateEnd,
+} from '@/lib/date-wib'
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,37 +24,25 @@ export async function GET(request: NextRequest) {
     if (!dateFrom && !dateTo) {
       const now = new Date()
       if (groupBy === 'day') {
-        const start = new Date(now)
-        start.setHours(0, 0, 0, 0)
-        const end = new Date(now)
-        end.setHours(23, 59, 59, 999)
-        where.createdAt = { gte: start, lte: end }
+        where.createdAt = {
+          gte: getWIBStartOfDay(now),
+          lte: getWIBEndOfDay(now),
+        }
       } else if (groupBy === 'week') {
-        const start = new Date(now)
-        const day = start.getDay()
-        const diff = start.getDate() - day + (day === 0 ? -6 : 1) // Adjust for Monday start
-        start.setDate(diff)
-        start.setHours(0, 0, 0, 0)
-
-        const end = new Date(start)
-        end.setDate(start.getDate() + 6)
-        end.setHours(23, 59, 59, 999)
-        where.createdAt = { gte: start, lte: end }
+        where.createdAt = {
+          gte: getWIBStartOfWeek(now),
+          lte: getWIBEndOfWeek(now),
+        }
       } else if (groupBy === 'month') {
-        const start = new Date(now.getFullYear(), now.getMonth(), 1)
-        start.setHours(0, 0, 0, 0)
-
-        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-        end.setHours(23, 59, 59, 999)
-        where.createdAt = { gte: start, lte: end }
+        where.createdAt = {
+          gte: getWIBStartOfMonth(now),
+          lte: getWIBEndOfMonth(now),
+        }
       }
     } else {
-      if (dateFrom) where.createdAt = { ...where.createdAt, gte: new Date(dateFrom) }
-      if (dateTo) {
-        const end = new Date(dateTo)
-        end.setHours(23, 59, 59, 999)
-        where.createdAt = { ...where.createdAt, lte: end }
-      }
+      where.createdAt = {}
+      if (dateFrom) where.createdAt.gte = parseWIBDateStart(dateFrom)
+      if (dateTo) where.createdAt.lte = parseWIBDateEnd(dateTo)
     }
 
     if (type === 'sales' || type === '' ) {
@@ -64,13 +62,12 @@ export async function GET(request: NextRequest) {
         let dateKey: string
         const d = new Date(tx.createdAt)
         if (groupBy === 'month') {
-          dateKey = d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+          dateKey = d.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', month: 'long', year: 'numeric' })
         } else if (groupBy === 'week') {
-          const weekStart = new Date(d)
-          weekStart.setDate(d.getDate() - d.getDay())
-          dateKey = weekStart.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+          const monday = getWIBStartOfWeek(d)
+          dateKey = monday.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short' })
         } else {
-          dateKey = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+          dateKey = d.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric' })
         }
 
         if (!grouped[dateKey]) {
@@ -187,12 +184,8 @@ export async function GET(request: NextRequest) {
       const movementWhere: any = {}
       if (dateFrom || dateTo) {
         movementWhere.createdAt = {}
-        if (dateFrom) movementWhere.createdAt.gte = new Date(dateFrom)
-        if (dateTo) {
-          const end = new Date(dateTo)
-          end.setHours(23, 59, 59, 999)
-          movementWhere.createdAt.lte = end
-        }
+        if (dateFrom) movementWhere.createdAt.gte = parseWIBDateStart(dateFrom)
+        if (dateTo) movementWhere.createdAt.lte = parseWIBDateEnd(dateTo)
       }
 
       const movements = await prisma.stockMovement.findMany({
