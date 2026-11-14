@@ -39,6 +39,29 @@ export async function PATCH(
       return NextResponse.json({ error: 'Status harus diisi' }, { status: 400 })
     }
 
+    // Jika transaksi diubah menjadi COMPLETED (misal admin klik Selesaikan di web),
+    // kunci HPP sekarang jika transaksi sebelumnya masih memiliki HPP 0
+    if (status === 'COMPLETED') {
+      const currentTx = await prisma.transaction.findUnique({
+        where: { id },
+        include: { items: { include: { product: true } } },
+      })
+      if (currentTx) {
+        for (const item of currentTx.items) {
+          if (
+            (!item.buyPrice || item.buyPrice === 0) &&
+            item.product?.buyPrice &&
+            item.product.buyPrice > 0
+          ) {
+            await prisma.transactionItem.update({
+              where: { id: item.id },
+              data: { buyPrice: item.product.buyPrice },
+            })
+          }
+        }
+      }
+    }
+
     const updated = await prisma.transaction.update({
       where: { id },
       data: { status },

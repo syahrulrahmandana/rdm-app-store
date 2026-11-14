@@ -321,6 +321,7 @@ export async function POST(request: NextRequest) {
                 productName: finalProductName,
                 quantity: 1,
                 price: finalPrice,
+                buyPrice: matchedProduct?.buyPrice || 0, // Kunci HPP pada detik pesanan masuk
                 subtotal: finalPrice,
               },
             ],
@@ -379,6 +380,23 @@ export async function POST(request: NextRequest) {
       }
 
       if (pendingTx) {
+        // Jika HPP saat pending masih 0 dan di master produk sekarang sudah ada HPP,
+        // kunci HPP sekarang di detik transaksi dinyatakan COMPLETED
+        for (const item of pendingTx.items) {
+          if (!item.buyPrice || item.buyPrice === 0) {
+            const p = await prisma.product.findUnique({
+              where: { id: item.productId },
+              select: { buyPrice: true },
+            })
+            if (p?.buyPrice && p.buyPrice > 0) {
+              await prisma.transactionItem.update({
+                where: { id: item.id },
+                data: { buyPrice: p.buyPrice },
+              })
+            }
+          }
+        }
+
         const updated = await prisma.transaction.update({
           where: { id: pendingTx.id },
           data: { status: 'COMPLETED' },
@@ -494,6 +512,7 @@ export async function POST(request: NextRequest) {
                     productName: finalProductName,
                     quantity: 1,
                     price: finalPrice,
+                    buyPrice: matchedProduct?.buyPrice || 0, // Kunci HPP transaksi
                     subtotal: finalPrice,
                   },
                 ],

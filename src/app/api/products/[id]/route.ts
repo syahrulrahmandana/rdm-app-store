@@ -30,6 +30,8 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
 
+    const updatedBuyPrice = parseFloat(body.buyPrice) || 0
+
     const product = await prisma.product.update({
       where: { id },
       data: {
@@ -37,7 +39,7 @@ export async function PUT(
         sku: body.sku,
         barcode: body.barcode || null,
         categoryId: body.categoryId || null,
-        buyPrice: parseFloat(body.buyPrice) || 0,
+        buyPrice: updatedBuyPrice,
         sellPrice: parseFloat(body.sellPrice) || 0,
         stock: parseInt(body.stock) ?? undefined,
         minStock: parseInt(body.minStock) || 5,
@@ -48,6 +50,21 @@ export async function PUT(
       },
       include: { category: true },
     })
+
+    // Jika harga beli diisi (misal produk baru dari bot yang modalnya baru disetel),
+    // hanya isi transaksi produk ini yang HPP-nya masih 0 (belum pernah dikunci).
+    // Transaksi lama yang sudah punya modal terkunci TIDAK AKAN diubah!
+    if (updatedBuyPrice > 0) {
+      await prisma.transactionItem.updateMany({
+        where: {
+          productId: id,
+          buyPrice: 0,
+        },
+        data: {
+          buyPrice: updatedBuyPrice,
+        },
+      })
+    }
 
     return NextResponse.json(product)
   } catch (error: any) {

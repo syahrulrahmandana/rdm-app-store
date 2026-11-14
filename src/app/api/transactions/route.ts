@@ -75,6 +75,14 @@ export async function POST(request: NextRequest) {
     const store = await prisma.store.findFirst()
     const receiptNo = generateReceiptNo(store?.receiptPrefix || 'RDM')
 
+    // Ambil data produk untuk mengunci snapshot HPP (buyPrice) saat transaksi terjadi
+    const productIds = body.items.map((i: any) => i.productId).filter(Boolean)
+    const dbProducts = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, buyPrice: true, manageStock: true },
+    })
+    const productMap = new Map(dbProducts.map((p) => [p.id, p]))
+
     // Create transaction
     const transaction = await prisma.transaction.create({
       data: {
@@ -92,14 +100,20 @@ export async function POST(request: NextRequest) {
         note: body.note || null,
         status: 'COMPLETED',
         items: {
-          create: body.items.map((item: any) => ({
-            productId: item.productId,
-            productName: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            discount: item.discount || 0,
-            subtotal: (item.price - (item.discount || 0)) * item.quantity,
-          })),
+          create: body.items.map((item: any) => {
+            const currentBuyPrice =
+              productMap.get(item.productId)?.buyPrice ??
+              (typeof item.buyPrice === 'number' ? item.buyPrice : 0)
+            return {
+              productId: item.productId,
+              productName: item.name,
+              quantity: item.quantity,
+              price: item.price,
+              buyPrice: currentBuyPrice, // Snapshot HPP terkunci di detik transaksi
+              discount: item.discount || 0,
+              subtotal: (item.price - (item.discount || 0)) * item.quantity,
+            }
+          }),
         },
       },
       include: {

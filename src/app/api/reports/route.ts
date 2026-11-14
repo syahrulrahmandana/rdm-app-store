@@ -81,7 +81,11 @@ export async function GET(request: NextRequest) {
         grouped[dateKey].count += 1
 
         tx.items.forEach((item) => {
-          const profit = (item.price - (item.product?.buyPrice || 0)) * item.quantity
+          const itemHpp =
+            typeof item.buyPrice === 'number' && item.buyPrice > 0
+              ? item.buyPrice
+              : item.product?.buyPrice || 0
+          const profit = (item.price - itemHpp) * item.quantity
           grouped[dateKey].totalProfit += profit
           grouped[dateKey].items += item.quantity
         })
@@ -97,7 +101,10 @@ export async function GET(request: NextRequest) {
 
       transactions.forEach((tx) => {
         tx.items.forEach((item) => {
-          const buyPrice = item.product?.buyPrice || 0
+          const buyPrice =
+            typeof item.buyPrice === 'number' && item.buyPrice > 0
+              ? item.buyPrice
+              : item.product?.buyPrice || 0
           summary.totalCapital += buyPrice * item.quantity
           summary.totalProfit += (item.price - buyPrice) * item.quantity
         })
@@ -107,12 +114,16 @@ export async function GET(request: NextRequest) {
       const productSales: Record<string, { name: string; quantity: number; revenue: number; profit: number }> = {}
       transactions.forEach((tx) => {
         tx.items.forEach((item) => {
+          const itemHpp =
+            typeof item.buyPrice === 'number' && item.buyPrice > 0
+              ? item.buyPrice
+              : item.product?.buyPrice || 0
           if (!productSales[item.productId]) {
             productSales[item.productId] = { name: item.productName, quantity: 0, revenue: 0, profit: 0 }
           }
           productSales[item.productId].quantity += item.quantity
           productSales[item.productId].revenue += item.subtotal
-          productSales[item.productId].profit += (item.price - (item.product?.buyPrice || 0)) * item.quantity
+          productSales[item.productId].profit += (item.price - itemHpp) * item.quantity
         })
       })
 
@@ -136,7 +147,13 @@ export async function GET(request: NextRequest) {
         topProducts,
         paymentMethods: Object.values(paymentMethods),
         transactions: transactions.slice(0, 100).map((t) => {
-          const profit = t.items.reduce((sum, item) => sum + (item.price - (item.product?.buyPrice || 0)) * item.quantity, 0)
+          const profit = t.items.reduce((sum, item) => {
+            const itemHpp =
+              typeof item.buyPrice === 'number' && item.buyPrice > 0
+                ? item.buyPrice
+                : item.product?.buyPrice || 0
+            return sum + (item.price - itemHpp) * item.quantity
+          }, 0)
           return {
             id: t.id,
             receiptNo: t.receiptNo,

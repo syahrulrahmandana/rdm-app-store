@@ -110,6 +110,7 @@ model TransactionItem {
   productName   String
   quantity      Int
   price         Float
+  buyPrice      Float    @default(0)
   discount      Float    @default(0)
   subtotal      Float
   createdAt     DateTime @default(now())
