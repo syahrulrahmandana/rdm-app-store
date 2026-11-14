@@ -40,6 +40,11 @@ interface Transaction {
   user: {
     name: string
   }
+  digitalAccounts?: {
+    id: string
+    accountData: string
+    status: string
+  }[]
 }
 
 export default function TransactionsPage() {
@@ -283,6 +288,50 @@ export default function TransactionsPage() {
                         <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                           {tx.note || 'Pesanan Custom'}
                         </span>
+                      )}
+
+                      {/* Tampilkan Data Akun Digital jika ada */}
+                      {tx.digitalAccounts && tx.digitalAccounts.length > 0 && (
+                        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {tx.digitalAccounts.map((acc, accIdx) => (
+                            <div
+                              key={accIdx}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '4px 8px',
+                                background: 'rgba(99, 102, 241, 0.1)',
+                                border: '1px solid rgba(99, 102, 241, 0.3)',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontFamily: "'JetBrains Mono', monospace",
+                                color: '#4338CA',
+                                maxWidth: '100%',
+                              }}
+                            >
+                              <span>🔑 {acc.accountData}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(acc.accountData)
+                                  toast.success('Data akun berhasil disalin!')
+                                }}
+                                style={{
+                                  padding: '2px 6px',
+                                  fontSize: 10,
+                                  background: '#4338CA',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: 4,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Salin
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </td>
 

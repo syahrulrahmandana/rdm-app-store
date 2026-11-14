@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
           items: { include: { product: { select: { name: true, sku: true } } } },
           user: { select: { name: true } },
           customer: { select: { name: true } },
+          digitalAccounts: true,
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
