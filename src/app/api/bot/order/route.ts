@@ -421,6 +421,21 @@ export async function POST(request: NextRequest) {
             data: { stock: remaining },
           })
 
+          try {
+            await prisma.stockMovement.create({
+              data: {
+                productId: matchedProduct.id,
+                type: 'SALE',
+                quantity: -1,
+                note: `Penjualan Bot WA #${transaction.receiptNo}`,
+                reference: transaction.id,
+                userId: adminUser.id,
+              },
+            })
+          } catch (e) {
+            console.error('Failed to log stock movement in bot order:', e)
+          }
+
           accountInfo.accountData = availableAccount.accountData
           accountInfo.remainingStock = remaining
           accountInfo.isOutOfStock = false

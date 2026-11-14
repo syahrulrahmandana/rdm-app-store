@@ -171,12 +171,32 @@ export async function GET(request: NextRequest) {
     if (type === 'stock') {
       const products = await prisma.product.findMany({
         where: { isActive: true },
-        include: { category: true },
-        orderBy: { stock: 'asc' },
+        include: {
+          category: true,
+          _count: {
+            select: {
+              digitalAccounts: {
+                where: { status: 'AVAILABLE' },
+              },
+            },
+          },
+        },
+        orderBy: [{ manageStock: 'desc' }, { stock: 'asc' }],
       })
 
+      const movementWhere: any = {}
+      if (dateFrom || dateTo) {
+        movementWhere.createdAt = {}
+        if (dateFrom) movementWhere.createdAt.gte = new Date(dateFrom)
+        if (dateTo) {
+          const end = new Date(dateTo)
+          end.setHours(23, 59, 59, 999)
+          movementWhere.createdAt.lte = end
+        }
+      }
+
       const movements = await prisma.stockMovement.findMany({
-        where: where.createdAt ? { createdAt: where.createdAt } : {},
+        where: movementWhere,
         include: {
           product: { select: { name: true, sku: true } },
           user: { select: { name: true } },
@@ -185,23 +205,39 @@ export async function GET(request: NextRequest) {
         take: 100,
       })
 
-      const totalStockValue = products.reduce((sum, p) => sum + (p.stock * p.buyPrice), 0)
-      const totalSellValue = products.reduce((sum, p) => sum + (p.stock * p.sellPrice), 0)
-      const lowStock = products.filter((p) => p.stock <= p.minStock).length
-      const outOfStock = products.filter((p) => p.stock <= 0).length
+      const managedProducts = products.filter((p) => p.manageStock)
+      const totalDigitalAccounts = products.reduce((sum, p) => sum + (p._count?.digitalAccounts || 0), 0)
+      const totalStockValue = managedProducts.reduce((sum, p) => sum + (p.stock * p.buyPrice), 0)
+      const totalSellValue = managedProducts.reduce((sum, p) => sum + (p.stock * p.sellPrice), 0)
+      const lowStock = managedProducts.filter((p) => p.stock <= p.minStock && p.stock > 0).length
+      const outOfStock = managedProducts.filter((p) => p.stock <= 0).length
 
       return NextResponse.json({
-        summary: { totalProducts: products.length, totalStockValue, totalSellValue, lowStock, outOfStock },
+        summary: {
+          totalProducts: products.length,
+          managedCount: managedProducts.length,
+          totalDigitalAccounts,
+          totalStockValue,
+          totalSellValue,
+          lowStock,
+          outOfStock,
+        },
         products: products.map((p) => ({
           id: p.id,
           name: p.name,
           sku: p.sku,
           stock: p.stock,
+          manageStock: p.manageStock,
+          availableAccounts: p._count?.digitalAccounts ?? p.stock,
           minStock: p.minStock,
           buyPrice: p.buyPrice,
           sellPrice: p.sellPrice,
-          stockValue: p.stock * p.buyPrice,
+          stockValue: (p.manageStock ? p.stock : 0) * p.buyPrice,
+          unit: p.unit || 'unit',
+          image: p.image || p.category?.image || null,
           category: p.category?.name || '-',
+          categoryIcon: p.category?.icon || '📦',
+          categoryColor: p.category?.color || '#3B82F6',
         })),
         movements,
       })

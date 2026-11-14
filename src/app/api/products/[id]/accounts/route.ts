@@ -126,6 +126,27 @@ export async function POST(
       })
     }
 
+    // Catat Riwayat Mutasi Stok
+    try {
+      const adminUser = await prisma.user.findFirst({
+        where: { role: { in: ['ADMIN', 'OWNER'] } },
+        select: { id: true },
+      })
+      if (adminUser) {
+        await prisma.stockMovement.create({
+          data: {
+            productId: id,
+            type: 'IN',
+            quantity: rawList.length,
+            note: `Restock ${rawList.length} Akun Digital Vault`,
+            userId: adminUser.id,
+          },
+        })
+      }
+    } catch (e) {
+      console.error('Failed to log stock movement on account add:', e)
+    }
+
     return NextResponse.json({
       success: true,
       message: `Berhasil menambahkan ${rawList.length} akun ke dalam stok digital`,
@@ -176,6 +197,27 @@ export async function DELETE(
         where: { id },
         data: { stock: availableCount },
       })
+    }
+
+    // Catat Riwayat Mutasi Stok
+    try {
+      const adminUser = await prisma.user.findFirst({
+        where: { role: { in: ['ADMIN', 'OWNER'] } },
+        select: { id: true },
+      })
+      if (adminUser) {
+        await prisma.stockMovement.create({
+          data: {
+            productId: id,
+            type: 'OUT',
+            quantity: -1,
+            note: 'Penghapusan akun digital dari brankas',
+            userId: adminUser.id,
+          },
+        })
+      }
+    } catch (e) {
+      console.error('Failed to log stock movement on account delete:', e)
     }
 
     return NextResponse.json({
