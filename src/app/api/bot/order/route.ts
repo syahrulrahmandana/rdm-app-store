@@ -248,9 +248,16 @@ export async function POST(request: NextRequest) {
       const store = await prisma.store.findFirst()
       const newReceiptNo = generateReceiptNo(store?.receiptPrefix || 'RDM')
       const finalPrice =
-        extractedPrice !== null && extractedPrice > 0
+        body.price && typeof body.price === 'number' && body.price > 0
+          ? body.price
+          : extractedPrice !== null && extractedPrice > 0
           ? extractedPrice
           : matchedProduct.sellPrice
+
+      const finalProductName =
+        body.productName && typeof body.productName === 'string' && body.productName.trim()
+          ? body.productName.trim()
+          : matchedProduct.name
 
       const paymentMethod = detectPaymentMethod(note)
 
@@ -271,7 +278,7 @@ export async function POST(request: NextRequest) {
             create: [
               {
                 productId: matchedProduct.id,
-                productName: matchedProduct.name,
+                productName: finalProductName,
                 quantity: 1,
                 price: finalPrice,
                 subtotal: finalPrice,
@@ -289,7 +296,7 @@ export async function POST(request: NextRequest) {
         success: true,
         action: 'proses',
         receiptNo: transaction.receiptNo,
-        productName: matchedProduct.name,
+        productName: finalProductName,
         price: finalPrice,
         customerName: customer?.name || customerPhone,
         customerPhone: cleanPhone,
@@ -371,9 +378,16 @@ export async function POST(request: NextRequest) {
       const store = await prisma.store.findFirst()
       const newReceiptNo = generateReceiptNo(store?.receiptPrefix || 'RDM')
       const finalPrice =
-        extractedPrice !== null && extractedPrice > 0
+        body.price && typeof body.price === 'number' && body.price > 0
+          ? body.price
+          : extractedPrice !== null && extractedPrice > 0
           ? extractedPrice
           : matchedProduct?.sellPrice || 0
+
+      const finalProductName =
+        body.productName && typeof body.productName === 'string' && body.productName.trim()
+          ? body.productName.trim()
+          : matchedProduct?.name || 'Pesanan Langsung'
 
       const directCompleted = await prisma.transaction.create({
         data: {
@@ -386,13 +400,13 @@ export async function POST(request: NextRequest) {
           paymentAmount: finalPrice,
           changeAmount: 0,
           status: 'COMPLETED',
-          note: `[WA Bot Langsung Selesai] ${note || ''}`,
+          note: `[WA Bot Langsung Selesai${isResellerOrder ? ' (Reseller)' : ''}] ${note || ''}`,
           items: matchedProduct
             ? {
                 create: [
                   {
                     productId: matchedProduct.id,
-                    productName: matchedProduct.name,
+                    productName: finalProductName,
                     quantity: 1,
                     price: finalPrice,
                     subtotal: finalPrice,
@@ -408,7 +422,7 @@ export async function POST(request: NextRequest) {
         success: true,
         action: 'done',
         receiptNo: directCompleted.receiptNo,
-        productName: matchedProduct?.name || 'Pesanan Langsung',
+        productName: finalProductName,
         total: finalPrice,
         customerName: customer?.name || customerPhone,
         status: 'COMPLETED',
