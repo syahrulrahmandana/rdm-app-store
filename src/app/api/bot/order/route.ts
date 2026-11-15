@@ -321,8 +321,8 @@ export async function POST(request: NextRequest) {
         body.price && typeof body.price === 'number' && body.price > 0
           ? body.price
           : extractedPrice !== null && extractedPrice > 0
-          ? extractedPrice
-          : null
+            ? extractedPrice
+            : null
 
       const requestedProductName =
         body.productName && typeof body.productName === 'string' && body.productName.trim()
@@ -553,28 +553,37 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // AKSI: BATAL / CANCEL (Ubah Status Menjadi Dibatalkan / VOIDED & Kembalikan Stok)
+    // AKSI: BATAL / CANCEL / REFUND (Ubah Status Menjadi VOIDED & Kembalikan Stok)
     // =========================================================================
-    if (action === 'batal' || action === 'cancel' || action === 'void') {
-      let pendingTx: any = null
+    const isRefundAction =
+      action === 'batal' ||
+      action === 'cancel' ||
+      action === 'void' ||
+      action === 'refund' ||
+      action === 'reffund' ||
+      /\b(reff?und|refund|kembali\s*dana|batal)\b/i.test(note || '')
+
+    if (isRefundAction) {
+      let targetTx: any = null
 
       if (receiptNo) {
-        pendingTx = await prisma.transaction.findFirst({
-          where: { receiptNo, status: 'PENDING' },
+        targetTx = await prisma.transaction.findFirst({
+          where: { receiptNo },
           include: { items: true, customer: true },
         })
       }
 
-      if (!pendingTx && customer?.id) {
-        pendingTx = await prisma.transaction.findFirst({
+      // Prioritas 1: Cari transaksi PENDING terbaru pelanggan
+      if (!targetTx && customer?.id) {
+        targetTx = await prisma.transaction.findFirst({
           where: { customerId: customer.id, status: 'PENDING' },
           orderBy: { createdAt: 'desc' },
           include: { items: true, customer: true },
         })
       }
 
-      if (!pendingTx && cleanPhone) {
-        pendingTx = await prisma.transaction.findFirst({
+      if (!targetTx && cleanPhone) {
+        targetTx = await prisma.transaction.findFirst({
           where: {
             customer: { phone: { contains: cleanPhone } },
             status: 'PENDING',
@@ -584,11 +593,23 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      if (!pendingTx) {
+      // Prioritas 2: Jika tidak ada yang pending tapi ada transaksi terakhir (misal refund transaksi lunas)
+      if (!targetTx && cleanPhone) {
+        targetTx = await prisma.transaction.findFirst({
+          where: {
+            customer: { phone: { contains: cleanPhone } },
+            status: { in: ['PENDING', 'COMPLETED'] },
+          },
+          orderBy: { createdAt: 'desc' },
+          include: { items: true, customer: true },
+        })
+      }
+
+      if (!targetTx) {
         return NextResponse.json(
           {
             success: false,
-            error: 'Tidak ditemukan transaksi PENDING yang dapat dibatalkan untuk pelanggan ini.',
+            error: 'Tidak ditemukan transaksi yang dapat dibatalkan atau direfund untuk pelanggan ini.',
           },
           { status: 404 }
         )
@@ -596,7 +617,7 @@ export async function POST(request: NextRequest) {
 
       // Kembalikan akun digital yang terkunci untuk transaksi ini jika ada
       const lockedAccounts = await prisma.digitalAccount.findMany({
-        where: { transactionId: pendingTx.id },
+        where: { transactionId: targetTx.id },
       })
       for (const acc of lockedAccounts) {
         await prisma.digitalAccount.update({
@@ -620,8 +641,8 @@ export async function POST(request: NextRequest) {
               productId: acc.productId,
               type: 'CANCEL',
               quantity: 1,
-              note: `Pembatalan Bot WA #${pendingTx.receiptNo}`,
-              reference: pendingTx.id,
+              note: `Batal/Refund Bot WA #${targetTx.receiptNo}`,
+              reference: targetTx.id,
               userId: adminUser.id,
             },
           })
@@ -629,20 +650,20 @@ export async function POST(request: NextRequest) {
       }
 
       const updated = await prisma.transaction.update({
-        where: { id: pendingTx.id },
+        where: { id: targetTx.id },
         data: { status: 'VOIDED' },
         include: { items: true, customer: true },
       })
 
       return NextResponse.json({
         success: true,
-        action: 'batal',
+        action: 'refund',
         receiptNo: updated.receiptNo,
         productName: updated.items[0]?.productName || 'Produk',
         total: updated.total,
         customerName: updated.customer?.name || cleanPhone,
         status: 'VOIDED',
-        message: 'Pesanan berhasil DIBATALKAN dan stok akun telah dikembalikan',
+        message: 'Pesanan berhasil DIREFUND / DIBATALKAN dan stok akun telah dikembalikan',
       })
     }
 
@@ -732,8 +753,8 @@ export async function POST(request: NextRequest) {
         body.price && typeof body.price === 'number' && body.price > 0
           ? body.price
           : extractedPrice !== null && extractedPrice > 0
-          ? extractedPrice
-          : null
+            ? extractedPrice
+            : null
 
       const requestedProductName =
         body.productName && typeof body.productName === 'string' && body.productName.trim()
@@ -813,36 +834,27 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      if (!matchedProduct) {
-        matchedProduct = await prisma.product.findFirst({
-          where: { sku: 'WA-CUSTOM' },
-        })
-
-        if (!matchedProduct) {
-          matchedProduct = await prisma.product.create({
-            data: {
-              name: 'PESANAN WHATSAPP (CUSTOM)',
-              sku: 'WA-CUSTOM',
-              sellPrice: requestedPrice || 0,
-              buyPrice: 0,
-              unit: 'AKUN',
-              stock: 999,
-              manageStock: false,
-              isActive: true,
-            },
-          })
-        }
-      }
-
-      const store = await prisma.store.findFirst()
-      const newReceiptNo = generateReceiptNo(store?.receiptPrefix || 'RDM')
       const finalPrice =
         requestedPrice !== null && requestedPrice > 0
           ? requestedPrice
           : matchedProduct?.sellPrice || 0
 
+      // JANGAN PERNAH membuat transaksi bodong Rp 0 jika tidak ada pesanan pending
+      if (!matchedProduct || finalPrice === 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Tidak ditemukan transaksi pending untuk pelanggan ini.',
+          },
+          { status: 404 }
+        )
+      }
+
       const finalProductName =
         requestedProductName || matchedProduct?.name || 'Pesanan Langsung'
+
+      const store = await prisma.store.findFirst()
+      const newReceiptNo = generateReceiptNo(store?.receiptPrefix || 'RDM')
 
       const directCompleted = await prisma.transaction.create({
         data: {
@@ -858,17 +870,17 @@ export async function POST(request: NextRequest) {
           note: `[WA Bot Langsung Selesai${isResellerOrder ? ' (Reseller)' : ''}] ${note || ''}`,
           items: matchedProduct
             ? {
-                create: [
-                  {
-                    productId: matchedProduct.id,
-                    productName: finalProductName,
-                    quantity: 1,
-                    price: finalPrice,
-                    buyPrice: matchedProduct?.buyPrice || 0, // Kunci HPP transaksi
-                    subtotal: finalPrice,
-                  },
-                ],
-              }
+              create: [
+                {
+                  productId: matchedProduct.id,
+                  productName: finalProductName,
+                  quantity: 1,
+                  price: finalPrice,
+                  buyPrice: matchedProduct?.buyPrice || 0, // Kunci HPP transaksi
+                  subtotal: finalPrice,
+                },
+              ],
+            }
             : undefined,
         },
         include: { items: true, customer: true },

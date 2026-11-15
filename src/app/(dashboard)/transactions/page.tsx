@@ -394,13 +394,12 @@ export default function TransactionsPage() {
 
                     {/* Metode Bayar */}
                     <td>
-                      <span className={`badge ${
-                        tx.paymentMethod === 'QRIS'
-                          ? 'badge-blue'
-                          : tx.paymentMethod === 'CASH'
+                      <span className={`badge ${tx.paymentMethod === 'QRIS'
+                        ? 'badge-blue'
+                        : tx.paymentMethod === 'CASH'
                           ? 'badge-green'
                           : 'badge-purple'
-                      }`}>
+                        }`}>
                         {tx.paymentMethod}
                       </span>
                     </td>
