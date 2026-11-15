@@ -110,6 +110,58 @@ export default function TransactionsPage() {
     }
   }
 
+  // Handle Batalkan Pesanan (VOID)
+  const handleVoid = async (txId: string, receiptNo: string) => {
+    if (!confirm(`Batalkan pesanan #${receiptNo}? Stok akun (jika ada) akan otomatis dikembalikan ke etalase.`)) {
+      return
+    }
+    try {
+      setActionLoading(txId)
+      const res = await fetch(`/api/transactions/${txId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'VOIDED' }),
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        toast.success(`Pesanan #${receiptNo} berhasil dibatalkan`)
+        fetchTransactions()
+      } else {
+        toast.error(data.error || 'Gagal membatalkan pesanan')
+      }
+    } catch (err) {
+      toast.error('Terjadi kesalahan koneksi')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // Handle Hapus Transaksi Permanen
+  const handleDelete = async (txId: string, receiptNo: string) => {
+    if (!confirm(`Hapus permanen riwayat transaksi #${receiptNo}? Tindakan ini tidak dapat dibatalkan.`)) {
+      return
+    }
+    try {
+      setActionLoading(txId)
+      const res = await fetch(`/api/transactions/${txId}`, {
+        method: 'DELETE',
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        toast.success(`Transaksi #${receiptNo} berhasil dihapus`)
+        fetchTransactions()
+      } else {
+        toast.error(data.error || 'Gagal menghapus transaksi')
+      }
+    } catch (err) {
+      toast.error('Terjadi kesalahan koneksi')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   // Hitung stats sederhana dari list transaksi yang ada
   const pendingCount = transactions.filter((t) => t.status === 'PENDING').length
   const completedCount = transactions.filter((t) => t.status === 'COMPLETED').length
@@ -378,15 +430,37 @@ export default function TransactionsPage() {
                     {/* Aksi */}
                     <td style={{ textAlign: 'right' }}>
                       {tx.status === 'PENDING' ? (
+                        <div style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => handleComplete(tx.id, tx.receiptNo)}
+                            disabled={actionLoading === tx.id}
+                            className="btn btn-sm btn-success"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            title="Selesaikan pesanan dan catat ke omzet"
+                          >
+                            <HiOutlineCheckCircle size={15} />
+                            <span>{actionLoading === tx.id ? '...' : 'Selesaikan'}</span>
+                          </button>
+                          <button
+                            onClick={() => handleVoid(tx.id, tx.receiptNo)}
+                            disabled={actionLoading === tx.id}
+                            className="btn btn-sm btn-danger"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            title="Batalkan pesanan ini dan kembalikan stok"
+                          >
+                            <HiOutlineXCircle size={15} />
+                            <span>Batalkan</span>
+                          </button>
+                        </div>
+                      ) : tx.status === 'VOIDED' ? (
                         <button
-                          onClick={() => handleComplete(tx.id, tx.receiptNo)}
+                          onClick={() => handleDelete(tx.id, tx.receiptNo)}
                           disabled={actionLoading === tx.id}
-                          className="btn btn-sm btn-success"
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                          title="Klik untuk menyelesaikan transaksi dan mencatatnya ke laporan omzet"
+                          className="btn btn-sm btn-ghost"
+                          style={{ color: 'var(--accent-red)', fontSize: 12 }}
+                          title="Hapus riwayat pesanan yang dibatalkan"
                         >
-                          <HiOutlineCheckCircle size={15} />
-                          <span>{actionLoading === tx.id ? 'Memproses...' : 'Selesaikan'}</span>
+                          Hapus
                         </button>
                       ) : (
                         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>

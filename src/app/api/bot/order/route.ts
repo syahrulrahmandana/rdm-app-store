@@ -553,6 +553,100 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
+    // AKSI: BATAL / CANCEL (Ubah Status Menjadi Dibatalkan / VOIDED & Kembalikan Stok)
+    // =========================================================================
+    if (action === 'batal' || action === 'cancel' || action === 'void') {
+      let pendingTx: any = null
+
+      if (receiptNo) {
+        pendingTx = await prisma.transaction.findFirst({
+          where: { receiptNo, status: 'PENDING' },
+          include: { items: true, customer: true },
+        })
+      }
+
+      if (!pendingTx && customer?.id) {
+        pendingTx = await prisma.transaction.findFirst({
+          where: { customerId: customer.id, status: 'PENDING' },
+          orderBy: { createdAt: 'desc' },
+          include: { items: true, customer: true },
+        })
+      }
+
+      if (!pendingTx && cleanPhone) {
+        pendingTx = await prisma.transaction.findFirst({
+          where: {
+            customer: { phone: { contains: cleanPhone } },
+            status: 'PENDING',
+          },
+          orderBy: { createdAt: 'desc' },
+          include: { items: true, customer: true },
+        })
+      }
+
+      if (!pendingTx) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Tidak ditemukan transaksi PENDING yang dapat dibatalkan untuk pelanggan ini.',
+          },
+          { status: 404 }
+        )
+      }
+
+      // Kembalikan akun digital yang terkunci untuk transaksi ini jika ada
+      const lockedAccounts = await prisma.digitalAccount.findMany({
+        where: { transactionId: pendingTx.id },
+      })
+      for (const acc of lockedAccounts) {
+        await prisma.digitalAccount.update({
+          where: { id: acc.id },
+          data: {
+            status: 'AVAILABLE',
+            transactionId: null,
+            soldAt: null,
+          },
+        })
+        const count = await prisma.digitalAccount.count({
+          where: { productId: acc.productId, status: 'AVAILABLE' },
+        })
+        await prisma.product.update({
+          where: { id: acc.productId },
+          data: { stock: count },
+        })
+        try {
+          await prisma.stockMovement.create({
+            data: {
+              productId: acc.productId,
+              type: 'CANCEL',
+              quantity: 1,
+              note: `Pembatalan Bot WA #${pendingTx.receiptNo}`,
+              reference: pendingTx.id,
+              userId: adminUser.id,
+            },
+          })
+        } catch (e) {}
+      }
+
+      const updated = await prisma.transaction.update({
+        where: { id: pendingTx.id },
+        data: { status: 'VOIDED' },
+        include: { items: true, customer: true },
+      })
+
+      return NextResponse.json({
+        success: true,
+        action: 'batal',
+        receiptNo: updated.receiptNo,
+        productName: updated.items[0]?.productName || 'Produk',
+        total: updated.total,
+        customerName: updated.customer?.name || cleanPhone,
+        status: 'VOIDED',
+        message: 'Pesanan berhasil DIBATALKAN dan stok akun telah dikembalikan',
+      })
+    }
+
+    // =========================================================================
     // AKSI: DONE (Ubah Status Menjadi Selesai / COMPLETED)
     // =========================================================================
     if (action === 'done' || action === 'selesai') {
