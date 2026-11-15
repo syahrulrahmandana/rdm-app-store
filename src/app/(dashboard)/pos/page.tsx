@@ -135,7 +135,7 @@ export default function POSPage() {
     }
 
     const payload = {
-      userId: (session?.user as any)?.id || 'system',
+      userId: (session?.user as any)?.id || undefined,
       subtotal,
       discount,
       discountType: cart.globalDiscountType,

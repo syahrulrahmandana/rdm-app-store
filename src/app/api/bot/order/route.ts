@@ -646,7 +646,7 @@ export async function POST(request: NextRequest) {
               userId: adminUser.id,
             },
           })
-        } catch (e) {}
+        } catch (e) { }
       }
 
       const updated = await prisma.transaction.update({

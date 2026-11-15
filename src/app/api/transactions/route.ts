@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { generateReceiptNo } from '@/lib/utils'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
@@ -84,11 +86,48 @@ export async function POST(request: NextRequest) {
     })
     const productMap = new Map(dbProducts.map((p) => [p.id, p]))
 
+    // Pastikan userId valid dan terdaftar di database (mencegah error Foreign Key 'system' saat session browser loading)
+    let validUserId = body.userId
+    let userExists = null
+    if (validUserId && validUserId !== 'system') {
+      userExists = await prisma.user.findUnique({
+        where: { id: validUserId },
+        select: { id: true },
+      })
+    }
+
+    if (!userExists) {
+      try {
+        const session = await getServerSession(authOptions)
+        if (session?.user?.id) {
+          userExists = await prisma.user.findUnique({
+            where: { id: session.user.id },
+            select: { id: true },
+          })
+        }
+      } catch (e) {}
+    }
+
+    if (!userExists) {
+      const defaultUser = await prisma.user.findFirst({
+        where: { isActive: true },
+        orderBy: { role: 'asc' },
+        select: { id: true },
+      })
+      validUserId = defaultUser?.id
+    } else {
+      validUserId = userExists.id
+    }
+
+    if (!validUserId) {
+      return NextResponse.json({ error: 'Tidak ditemukan user aktif untuk mencatat transaksi' }, { status: 400 })
+    }
+
     // Create transaction
     const transaction = await prisma.transaction.create({
       data: {
         receiptNo,
-        userId: body.userId,
+        userId: validUserId,
         customerId: body.customerId || null,
         subtotal: body.subtotal,
         discount: body.discount || 0,
@@ -144,7 +183,7 @@ export async function POST(request: NextRequest) {
             quantity: -item.quantity,
             note: `Penjualan #${receiptNo}`,
             reference: transaction.id,
-            userId: body.userId,
+            userId: validUserId,
           },
         })
       }
