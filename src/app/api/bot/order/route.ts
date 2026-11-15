@@ -46,6 +46,10 @@ function matchProduct(
 
   const rawLower = (note || '').toLowerCase()
   const lowerNote = rawLower
+    .replace(/\bse\s*tahun\b/gi, '1 tahun')
+    .replace(/\bse\s*bulan\b/gi, '1 bulan')
+    .replace(/\bse\s*minggu\b/gi, '1 minggu')
+    .replace(/\bse\s*hari\b/gi, '1 hari')
     .replace(/(\d+)\s*(bulan|bln)/g, '$1 bulan')
     .replace(/(\d+)\s*(tahun|thn|th)/g, '$1 tahun')
     .replace(/(\d+)\s*(hari|hr)/g, '$1 hari')
@@ -125,45 +129,85 @@ function matchProduct(
       }
     }
 
-    // Durasi / paket
-    if (
-      (lowerNote.includes('2 bulan') || lowerNote.includes('2b') || lowerNote.includes('2bln') || lowerNote.includes('2m')) &&
-      pName.includes('2 bulan')
-    ) {
-      score += 25
+    // Tipe Perangkat (TV vs Mobile vs AllDev)
+    const noteHasTv = /\b(tv|smart\s*tv|tv\s*only)\b/i.test(lowerNote)
+    const prodHasTv = /\b(tv|smart\s*tv|tv\s*only)\b/i.test(pName)
+    const prodHasMobile = /\b(mobile|hp)\b/i.test(pName)
+    const noteHasMobile = /\b(mobile|hp|handphone)\b/i.test(lowerNote)
+
+    if (noteHasTv && prodHasTv) {
+      score += 35
+    } else if (noteHasTv && prodHasMobile) {
+      score -= 35
     }
 
-    if (
-      (lowerNote.includes('1 bulan') || lowerNote.includes('1b') || lowerNote.includes('1bln') || lowerNote.includes('1m') || lowerNote.includes('indplan')) &&
-      (pName.includes('1 bulan') || pName.includes('1b') || pName.includes('individual'))
-    ) {
-      score += 20
+    if (noteHasMobile && prodHasMobile) {
+      score += 30
+    } else if (noteHasMobile && prodHasTv) {
+      score -= 30
+    }
+
+    // Tipe Akun (Private vs Sharing)
+    const noteHasPriv = /\b(priv|private|1p1u)\b/i.test(lowerNote)
+    const prodHasPriv = /\b(priv|private|1p1u)\b/i.test(pName)
+    const prodHasSharing = /\b(sharing|share|2u|4u|5u|6u|8u)\b/i.test(pName)
+    const noteHasSharing = /\b(sharing|share|2u|4u|5u|6u|8u)\b/i.test(lowerNote)
+
+    if (noteHasPriv && prodHasPriv) {
+      score += 25
+    } else if (noteHasPriv && prodHasSharing) {
+      score -= 35
+    }
+
+    if (noteHasSharing && prodHasSharing) {
+      score += 25
+    } else if (noteHasSharing && prodHasPriv) {
+      score -= 35
+    }
+
+    // Durasi: 1 Tahun / Setahun
+    const noteHas1Year = /\b(1\s*tahun|1th|1thn|12\s*bulan|12bln|setahun)\b/i.test(lowerNote)
+    const prodHas1Year = /\b(1\s*tahun|1\s*th|setahun)\b/i.test(pName)
+
+    // Durasi: 1 Bulan / Sebulan / 30 Hari
+    const noteHas1Month = /\b(1\s*bulan|1b|1bln|30\s*hari|30hari|1m|sebulan)\b/i.test(lowerNote)
+    const prodHas1Month = /\b(1\s*bulan|1b|1bln|30\s*hari|individual)\b/i.test(pName)
+
+    // Durasi: 7 Hari / 1 Minggu / Seminggu
+    const noteHas7Days = /\b(7\s*hari|7hari|1\s*minggu|1mgg|1w|seminggu)\b/i.test(lowerNote)
+    const prodHas7Days = /\b(7\s*hari|7hari|1\s*minggu|1mgg)\b/i.test(pName)
+
+    // Durasi: 2 Bulan
+    const noteHas2Month = /\b(2\s*bulan|2b|2bln|60\s*hari|60hari|2m)\b/i.test(lowerNote)
+    const prodHas2Month = /\b(2\s*bulan|2b|2bln)\b/i.test(pName)
+
+    if (noteHas1Year && prodHas1Year) {
+      score += 40
+    } else if (noteHas1Year && (prodHas1Month || prodHas7Days)) {
+      score -= 50
+    }
+
+    if (noteHas1Month && prodHas1Month) {
+      score += 25
+    } else if (noteHas1Month && (prodHas1Year || prodHas7Days)) {
+      score -= 50
+    }
+
+    if (noteHas7Days && prodHas7Days) {
+      score += 30
+    } else if (noteHas7Days && (prodHas1Month || prodHas1Year)) {
+      score -= 50
+    }
+
+    if (noteHas2Month && prodHas2Month) {
+      score += 30
+    } else if (noteHas2Month && (prodHas1Month || prodHas1Year)) {
+      score -= 50
     }
 
     if (
       (lowerNote.includes('1u') || lowerNote.includes('1u1b') || lowerNote.includes('1 user')) &&
       pName.includes('1u')
-    ) {
-      score += 20
-    }
-
-    if (
-      (lowerNote.includes('1 tahun') || lowerNote.includes('1th') || lowerNote.includes('1thn')) &&
-      (pName.includes('1 tahun') || pName.includes('1 th'))
-    ) {
-      score += 20
-    }
-
-    if (
-      (lowerNote.includes('7 hari') || lowerNote.includes('7hari')) &&
-      pName.includes('7 hari')
-    ) {
-      score += 20
-    }
-
-    if (
-      (lowerNote.includes('30 hari') || lowerNote.includes('30hari')) &&
-      pName.includes('30 hari')
     ) {
       score += 20
     }

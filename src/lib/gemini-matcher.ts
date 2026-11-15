@@ -48,12 +48,17 @@ ${JSON.stringify(candidatesList, null, 2)}
 
 ATURAN WAJIB:
 1. Perhatikan DURASI secara cermat:
-   - "1 bulan" = "30 hari" = "1b" = "1bln" = "30hari"
+   - "setahun" = "1 tahun" = "12 bulan" = "1th" = "1thn" = "365 hari"
+   - "sebulan" = "1 bulan" = "30 hari" = "1b" = "1bln" = "30hari"
    - "2 bulan" = "60 hari" = "2b" = "2bln"
-   - "7 hari" = "1 minggu" = "1mgg" = "7hari"
-   - "1 tahun" = "12 bulan" = "1th" = "1thn" = "365 hari"
-   JANGAN tertukar antara "1 bulan" (30 hari) dengan "7 hari" (1 minggu)!
-2. Perhatikan VARIAN & SINGKATAN:
+   - "seminggu" = "7 hari" = "1 minggu" = "1mgg" = "7hari"
+   - "sehari" = "1 hari" = "1hr"
+   JANGAN SEKALI-KALI tertukar antara "1 tahun / setahun" dengan "1 bulan"!
+   JANGAN SEKALI-KALI tertukar antara "1 bulan" dengan "7 hari / 1 minggu"!
+2. Perhatikan VARIAN & TIPE DEVICE:
+   - "tv" / "tv only" / "smart tv" = Varian TV / Private TV
+   - "mobile" / "hp" = Varian Mobile
+   - "alldev" / "all device" = Varian Semua Device
    - "yt" / "yutub" = YouTube
    - "famplan" = Family Plan / Fam
    - "indplan" = Individu / Individual Plan
@@ -70,54 +75,71 @@ ATURAN WAJIB:
   "reasoning": "penjelasan singkat mengapa produk ini dipilih"
 }`
 
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 3500) // Timeout 3.5 detik
+    // Model candidate list: coba gemini-3.5-flash-lite terlebih dahulu, fallback ke gemini-3.8-flash & gemini-3.5-flash
+    const candidateModels = [
+      'gemini-3.5-flash-lite',
+      'gemini-3.8-flash',
+      'gemini-3.5-flash'
+    ]
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`
+    for (const modelName of candidateModels) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 4500) // Timeout 4.5 detik per model
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }],
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
-        ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-          temperature: 0.1,
-        },
-      }),
-    })
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: prompt }],
+              },
+            ],
+            generationConfig: {
+              response_mime_type: 'application/json',
+              temperature: 0.1,
+            },
+          }),
+        })
 
-    clearTimeout(timeoutId)
+        clearTimeout(timeoutId)
 
-    if (!response.ok) {
-      console.warn(`[Gemini Matcher] HTTP ${response.status}: ${await response.text()}`)
-      return null
+        if (!response.ok) {
+          const errDetail = await response.text()
+          console.warn(`[Gemini Matcher] Model ${modelName} returned HTTP ${response.status}: ${errDetail}`)
+          continue // Coba model berikutnya
+        }
+
+        const data = await response.json()
+        const contentText = data?.candidates?.[0]?.content?.parts?.[0]?.text
+        if (!contentText) continue
+
+        const parsed = JSON.parse(contentText)
+        if (!parsed || !parsed.matchedId) {
+          continue
+        }
+
+        const matched = products.find((p) => p.id === parsed.matchedId)
+        if (!matched) continue
+
+        return {
+          matchedProduct: matched,
+          confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.95,
+          reasoning: parsed.reasoning || `Matched by Gemini AI (${modelName})`,
+        }
+      } catch (err: any) {
+        clearTimeout(timeoutId)
+        console.warn(`[Gemini Matcher] Failed with model ${modelName}:`, err.message || err)
+      }
     }
 
-    const data = await response.json()
-    const contentText = data?.candidates?.[0]?.content?.parts?.[0]?.text
-    if (!contentText) return null
-
-    const parsed = JSON.parse(contentText)
-    if (!parsed || !parsed.matchedId) {
-      return null
-    }
-
-    const matched = products.find((p) => p.id === parsed.matchedId)
-    if (!matched) return null
-
-    return {
-      matchedProduct: matched,
-      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.9,
-      reasoning: parsed.reasoning || 'Matched by Gemini AI',
-    }
+    return null
   } catch (error: any) {
     console.warn('[Gemini Matcher Error]:', error.message || error)
     return null
