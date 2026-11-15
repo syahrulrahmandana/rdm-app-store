@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { HiOutlineArrowPath, HiOutlineCircleStack, HiOutlineBuildingStorefront } from 'react-icons/hi2'
+import { HiOutlineArrowPath, HiOutlineCircleStack, HiOutlineBuildingStorefront, HiOutlineSparkles } from 'react-icons/hi2'
 import toast from 'react-hot-toast'
 
 export default function SettingsPage() {
@@ -9,6 +9,7 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState('')
   const [address, setAddress] = useState('')
   const [tax, setTax] = useState(0)
+  const [geminiApiKey, setGeminiApiKey] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -26,6 +27,7 @@ export default function SettingsPage() {
         setPhone(data.phone || '')
         setAddress(data.address || '')
         setTax(data.taxRate || 0)
+        setGeminiApiKey(data.geminiApiKey || '')
       } else {
         toast.error(data.error || 'Gagal memuat pengaturan')
       }
@@ -48,6 +50,7 @@ export default function SettingsPage() {
           phone,
           address,
           taxRate: tax,
+          geminiApiKey,
         }),
       })
 
@@ -111,6 +114,44 @@ export default function SettingsPage() {
             </button>
           </div>
         </form>
+
+        {/* Gemini AI Card */}
+        <div className="card" style={{ padding: 24 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <HiOutlineSparkles style={{ color: 'var(--accent-primary)' }} /> Integrasi Google Gemini AI (Prediksi Pesanan Chat)
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+            Gemini Flash bertindak cerdas mengenali pesanan dari format chat bebas di WhatsApp (memahami varian 1 bulan vs 7 hari, singkatan seperti yt/nflx/am/capcut, typo, dll). Jika API Key tidak diisi, bot tetap menggunakan pencocokan reguler.
+          </p>
+          <div className="input-group">
+            <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Google Gemini API Key</span>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--accent-blue)', textDecoration: 'underline', fontSize: 12 }}
+              >
+                Dapatkan API Key Gratis di Google AI Studio ↗
+              </a>
+            </label>
+            <input
+              type="password"
+              className="input font-mono"
+              placeholder="AIzaSy..."
+              value={geminiApiKey}
+              onChange={(e) => setGeminiApiKey(e.target.value)}
+            />
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              💡 Gunakan model gratis Gemini 1.5 Flash tanpa biaya bulanan.
+            </span>
+          </div>
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? 'Menyimpan...' : 'Simpan API Key'}
+            </button>
+          </div>
+        </div>
 
         {/* Database backup */}
         <div className="card" style={{ padding: 24 }}>

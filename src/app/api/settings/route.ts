@@ -44,6 +44,7 @@ export async function PUT(request: NextRequest) {
         phone: body.phone || null,
         address: body.address || null,
         taxRate: parseFloat(body.taxRate) || 0,
+        geminiApiKey: body.geminiApiKey !== undefined ? (body.geminiApiKey || null) : undefined,
       },
       create: {
         id: 'store-1',
@@ -51,6 +52,7 @@ export async function PUT(request: NextRequest) {
         phone: body.phone || null,
         address: body.address || null,
         taxRate: parseFloat(body.taxRate) || 0,
+        geminiApiKey: body.geminiApiKey || null,
       },
     })
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { generateReceiptNo } from '@/lib/utils'
+import { predictProductWithGemini } from '@/lib/gemini-matcher'
 
 // Helper: Ekstraksi nominal harga dari teks jika ada
 function extractPrice(text: string): number | null {
@@ -284,12 +285,56 @@ export async function POST(request: NextRequest) {
           ? body.productName.trim()
           : ''
 
-      let matchedProduct = matchProduct(
-        requestedProductName ? `${requestedProductName} ${note}` : note,
-        requestedPrice,
-        allProducts,
-        isResellerOrder
-      )
+      // Ambil API Key Gemini (dari setting database toko, env, atau payload request)
+      const storeSetting = await prisma.store.findUnique({
+        where: { id: 'store-1' },
+        select: { geminiApiKey: true },
+      })
+      const geminiApiKey =
+        storeSetting?.geminiApiKey ||
+        process.env.GEMINI_API_KEY ||
+        request.headers.get('x-gemini-key') ||
+        body.geminiApiKey ||
+        null
+
+      let matchedProduct: any = null
+      let aiReasoning = ''
+
+      // 1. Coba Prediksi dengan Google Gemini AI (Jika API Key tersedia)
+      if (geminiApiKey) {
+        try {
+          const aiInputText = requestedProductName
+            ? `${note} (kandidat: ${requestedProductName})`
+            : note
+
+          const aiResult = await predictProductWithGemini(
+            aiInputText,
+            allProducts,
+            geminiApiKey,
+            isResellerOrder
+          )
+
+          if (aiResult?.matchedProduct && aiResult.confidence >= 0.65) {
+            matchedProduct = aiResult.matchedProduct
+            aiReasoning = aiResult.reasoning
+            console.log(
+              `[Gemini AI Prediction Success] Produk Cocok: "${matchedProduct.name}" (Confidence: ${aiResult.confidence}) Alasan: ${aiReasoning}`
+            )
+          }
+        } catch (aiErr: any) {
+          console.warn('[Gemini AI Prediction Warning]:', aiErr.message)
+        }
+      }
+
+      // 2. Fallback: Gunakan Pencocokan Berbasis Aturan jika AI tidak aktif atau confidence rendah
+      if (!matchedProduct) {
+        matchedProduct = matchProduct(
+          requestedProductName ? `${requestedProductName} ${note}` : note,
+          requestedPrice,
+          allProducts,
+          isResellerOrder
+        )
+      }
 
       // Jika belum cocok di database, dan ada nama produk (misal dari list.json):
       if (!matchedProduct && requestedProductName) {
@@ -557,12 +602,56 @@ export async function POST(request: NextRequest) {
           ? body.productName.trim()
           : ''
 
-      let matchedProduct = matchProduct(
-        requestedProductName ? `${requestedProductName} ${note}` : note,
-        requestedPrice,
-        allProducts,
-        isResellerOrder
-      )
+      // Ambil API Key Gemini (dari setting database toko, env, atau payload request)
+      const storeSetting = await prisma.store.findUnique({
+        where: { id: 'store-1' },
+        select: { geminiApiKey: true },
+      })
+      const geminiApiKey =
+        storeSetting?.geminiApiKey ||
+        process.env.GEMINI_API_KEY ||
+        request.headers.get('x-gemini-key') ||
+        body.geminiApiKey ||
+        null
+
+      let matchedProduct: any = null
+      let aiReasoning = ''
+
+      // 1. Coba Prediksi dengan Google Gemini AI (Jika API Key tersedia)
+      if (geminiApiKey) {
+        try {
+          const aiInputText = requestedProductName
+            ? `${note} (kandidat: ${requestedProductName})`
+            : note
+
+          const aiResult = await predictProductWithGemini(
+            aiInputText,
+            allProducts,
+            geminiApiKey,
+            isResellerOrder
+          )
+
+          if (aiResult?.matchedProduct && aiResult.confidence >= 0.65) {
+            matchedProduct = aiResult.matchedProduct
+            aiReasoning = aiResult.reasoning
+            console.log(
+              `[Gemini AI Prediction Success] Produk Cocok: "${matchedProduct.name}" (Confidence: ${aiResult.confidence}) Alasan: ${aiReasoning}`
+            )
+          }
+        } catch (aiErr: any) {
+          console.warn('[Gemini AI Prediction Warning]:', aiErr.message)
+        }
+      }
+
+      // 2. Fallback: Gunakan Pencocokan Berbasis Aturan jika AI tidak aktif atau confidence rendah
+      if (!matchedProduct) {
+        matchedProduct = matchProduct(
+          requestedProductName ? `${requestedProductName} ${note}` : note,
+          requestedPrice,
+          allProducts,
+          isResellerOrder
+        )
+      }
 
       if (!matchedProduct && requestedProductName) {
         matchedProduct = allProducts.find(

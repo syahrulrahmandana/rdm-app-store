@@ -37,6 +37,7 @@ model Store {
   taxRate       Float    @default(0)
   receiptPrefix String   @default("RDM")
   receiptFooter String?  @default("Terima kasih atas kunjungan Anda!")
+  geminiApiKey  String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
