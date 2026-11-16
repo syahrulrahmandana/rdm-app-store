@@ -348,10 +348,10 @@ export async function POST(request: NextRequest) {
 
       // Ambil API Key Gemini (dari setting database toko, env, atau payload request)
       const geminiApiKey =
+        body.geminiApiKey ||
         storeSetting?.geminiApiKey ||
         process.env.GEMINI_API_KEY ||
         request.headers.get('x-gemini-key') ||
-        body.geminiApiKey ||
         null
 
       // 0. Analisis Gambar Bukti Transfer (Gemini Vision Multimodal)
@@ -882,10 +882,10 @@ export async function POST(request: NextRequest) {
 
       // Ambil API Key Gemini (dari setting database toko, env, atau payload request)
       const geminiApiKey =
+        body.geminiApiKey ||
         storeSetting?.geminiApiKey ||
         process.env.GEMINI_API_KEY ||
         request.headers.get('x-gemini-key') ||
-        body.geminiApiKey ||
         null
 
       let matchedProduct: any = null

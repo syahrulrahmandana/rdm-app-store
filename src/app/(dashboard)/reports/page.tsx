@@ -2,7 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import { formatCurrency, formatNumber, getPaymentMethodLabel } from '@/lib/utils'
-import { HiOutlineArrowDownTray, HiOutlineCalendar, HiOutlineTrash, HiOutlinePrinter } from 'react-icons/hi2'
+import {
+  HiOutlineArrowDownTray,
+  HiOutlineCalendar,
+  HiOutlineTrash,
+  HiOutlinePrinter,
+  HiOutlineSparkles,
+  HiOutlineLightBulb,
+  HiOutlineCheckCircle,
+  HiOutlineExclamationTriangle,
+} from 'react-icons/hi2'
 import { useSession } from 'next-auth/react'
 import toast from 'react-hot-toast'
 import {
@@ -111,6 +120,32 @@ export default function ReportsPage() {
   // Receipt modal states for reprinting
   const [selectedReceipt, setSelectedReceipt] = useState<TransactionItem | null>(null)
   const [isReceiptOpen, setIsReceiptOpen] = useState(false)
+
+  // AI Business Advisor States
+  const [isAdvisorModalOpen, setIsAdvisorModalOpen] = useState(false)
+  const [advisorData, setAdvisorData] = useState<any | null>(null)
+  const [loadingAdvisor, setLoadingAdvisor] = useState(false)
+
+  const fetchBusinessAdvisor = async () => {
+    setLoadingAdvisor(true)
+    setIsAdvisorModalOpen(true)
+    try {
+      let query = `?groupBy=${groupBy}`
+      if (dateFrom) query += `&dateFrom=${dateFrom}`
+      if (dateTo) query += `&dateTo=${dateTo}`
+      const res = await fetch(`/api/ai/business-advisor${query}`)
+      const json = await res.json()
+      if (res.ok && json.success) {
+        setAdvisorData(json.advisor)
+      } else {
+        toast.error(json.error || 'Gagal memuat analisis bisnis')
+      }
+    } catch (e: any) {
+      toast.error('Terjadi kesalahan saat memproses analisis AI')
+    } finally {
+      setLoadingAdvisor(false)
+    }
+  }
 
   useEffect(() => {
     fetch('/api/settings')
@@ -293,6 +328,27 @@ export default function ReportsPage() {
 
           <button className="btn btn-ghost" onClick={exportCSV}>
             <HiOutlineArrowDownTray size={16} /> Export CSV
+          </button>
+
+          <button
+            className="btn"
+            style={{
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+              color: '#fff',
+              border: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 600,
+              padding: '8px 16px',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)',
+              cursor: 'pointer',
+            }}
+            onClick={fetchBusinessAdvisor}
+          >
+            <HiOutlineSparkles size={16} />
+            <span>💡 Analisis Bisnis (AI)</span>
           </button>
         </div>
       </div>
@@ -819,6 +875,202 @@ export default function ReportsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal AI Business Advisor */}
+      {isAdvisorModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsAdvisorModalOpen(false)}>
+          <div
+            className="modal-content animate-slide-up"
+            style={{ maxWidth: 720, maxHeight: '90vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="modal-header"
+              style={{
+                background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%)',
+                padding: '16px 20px',
+                borderBottom: '1px solid var(--border-color)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <HiOutlineSparkles size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    AI Business Advisor
+                    <span className="badge badge-purple" style={{ fontSize: 10 }}>Powered by Google Gemini</span>
+                  </h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                    Evaluasi performa toko dan rekomendasi strategis berdasarkan data penjualan Anda
+                  </p>
+                </div>
+              </div>
+              <button className="btn btn-icon btn-ghost" onClick={() => setIsAdvisorModalOpen(false)}>×</button>
+            </div>
+
+            <div className="modal-body" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {loadingAdvisor ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                  <div className="skeleton" style={{ height: 60, width: '100%', marginBottom: 16 }} />
+                  <div className="skeleton" style={{ height: 120, width: '100%', marginBottom: 16 }} />
+                  <div className="skeleton" style={{ height: 180, width: '100%' }} />
+                  <p style={{ marginTop: 16, color: 'var(--accent-purple)', fontWeight: 600, fontSize: 13 }}>
+                    ✨ Sedang menganalisis omset, profit margin, dan produk terlaris dengan Gemini AI...
+                  </p>
+                </div>
+              ) : advisorData ? (
+                <>
+                  {/* Status Kesehatan & Score */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '14px 18px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Status Kesehatan Toko:</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-green)', marginTop: 2 }}>
+                        {advisorData.healthStatus || 'Sehat'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Skor Performa:</div>
+                      <div className="font-mono" style={{ fontSize: 24, fontWeight: 900, color: 'var(--accent-purple)' }}>
+                        {advisorData.healthScore || 85}<span style={{ fontSize: 14, color: 'var(--text-muted)' }}>/100</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ringkasan Eksekutif */}
+                  <div>
+                    <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+                      📋 Ringkasan Eksekutif
+                    </h4>
+                    <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)', margin: 0 }}>
+                      {advisorData.executiveSummary}
+                    </p>
+                  </div>
+
+                  {/* Split Kekuatan & Risiko */}
+                  <div className="grid-2" style={{ gap: 14 }}>
+                    <div style={{ background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.2)', padding: 14, borderRadius: 'var(--radius-md)' }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-green)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <HiOutlineCheckCircle size={16} /> Kekuatan Toko Saat Ini
+                      </h4>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: 'var(--text-primary)' }}>
+                        {(advisorData.strengths || []).map((s: string, idx: number) => (
+                          <li key={idx}>{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div style={{ background: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: 14, borderRadius: 'var(--radius-md)' }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-red)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <HiOutlineExclamationTriangle size={16} /> Potensi Risiko / Kebocoran Margin
+                      </h4>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: 'var(--text-primary)' }}>
+                        {(advisorData.risks || []).map((r: string, idx: number) => (
+                          <li key={idx}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Insight Produk Bintang & Bundling */}
+                  {advisorData.topProductInsights && advisorData.topProductInsights.length > 0 && (
+                    <div style={{ background: 'rgba(99, 102, 241, 0.06)', border: '1px solid rgba(99, 102, 241, 0.2)', padding: 14, borderRadius: 'var(--radius-md)' }}>
+                      <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-purple)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <HiOutlineLightBulb size={16} /> Insight Produk Bintang & Peluang Upselling
+                      </h4>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.6, color: 'var(--text-primary)' }}>
+                        {advisorData.topProductInsights.map((insight: string, idx: number) => (
+                          <li key={idx}>{insight}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Rencana Strategis & Aksi Nyata */}
+                  {advisorData.actionableStrategies && advisorData.actionableStrategies.length > 0 && (
+                    <div>
+                      <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>
+                        🚀 Rekomendasi Aksi Nyata untuk Diterapkan
+                      </h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {advisorData.actionableStrategies.map((strat: any, idx: number) => (
+                          <div
+                            key={idx}
+                            style={{
+                              padding: 12,
+                              borderRadius: 'var(--radius-md)',
+                              border: '1px solid var(--border-color)',
+                              background: 'var(--bg-secondary)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'flex-start',
+                              gap: 12,
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
+                                {strat.title}
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+                                {strat.action}
+                              </div>
+                            </div>
+                            <span
+                              className={`badge ${strat.impact === 'Tinggi' ? 'badge-purple' : 'badge-blue'}`}
+                              style={{ flexShrink: 0, fontSize: 10 }}
+                            >
+                              Dampak {strat.impact}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 20px', display: 'flex', justifyContent: 'space-between' }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={fetchBusinessAdvisor}
+                disabled={loadingAdvisor}
+              >
+                🔄 Refresh Analisis
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setIsAdvisorModalOpen(false)}
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}

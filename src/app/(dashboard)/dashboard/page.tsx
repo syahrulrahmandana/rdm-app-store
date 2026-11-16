@@ -268,8 +268,22 @@ export default function DashboardPage() {
 
         {/* Low Stock Alert */}
         <div className="chart-container">
-          <div className="chart-header">
+          <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 className="chart-title">⚠️ Stok Menipis</h3>
+            <a
+              href="/inventory"
+              style={{
+                fontSize: 12,
+                color: 'var(--accent-purple)',
+                fontWeight: 600,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              🔮 Prediksi Stok AI &rarr;
+            </a>
           </div>
           <div className="table-container" style={{ border: 'none', borderRadius: 0, background: 'transparent' }}>
             <table className="table">
