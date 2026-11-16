@@ -79,14 +79,11 @@ ATURAN WAJIB:
   "reasoning": "penjelasan singkat mengapa produk ini dipilih"
 }`
 
-    // Model candidate list: coba model Gemini Flash resmi
+    // Model candidate list: model Gemini Flash terbaru
     const candidateModels = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-2.5-flash',
-      'gemini-1.5-flash-8b',
+      'gemini-3.5-flash',
+      'gemini-3.8-flash',
       'gemini-3.5-flash-lite',
-      'gemini-3.8-flash'
     ]
 
     for (const modelName of candidateModels) {
@@ -151,4 +148,130 @@ ATURAN WAJIB:
     console.warn('[Gemini Matcher Error]:', error.message || error)
     return null
   }
+}
+
+export interface PaymentAnalysis {
+  isValidProof: boolean
+  amount: number | null
+  sourceMethod: string | null // GOPAY, DANA, BCA, BRI, MANDIRI, BNI, OVO, SHOPEEPAY, SEABANK, dsb
+  destinationType: string | null // QRIS, BANK_TRANSFER, EWALLET
+  destinationName: string | null
+  status: string // BERHASIL, MENUNGGU, GAGAL
+  senderName?: string | null
+  notes?: string | null
+  confidence: number
+  summary: string // Misal: "GOPAY ➔ QRIS (RULLHHH DIGITAL MARKET)"
+}
+
+/**
+ * Gemini Vision Payment Proof Analyzer
+ * Membaca gambar bukti transfer untuk mengekstrak nominal, metode asal (DANA/BCA/GoPay),
+ * dan tujuan transfer (QRIS/Rekening Toko).
+ */
+export async function analyzePaymentProofWithGemini(
+  imageBase64: string,
+  apiKey: string
+): Promise<PaymentAnalysis | null> {
+  if (!apiKey || !apiKey.trim() || !imageBase64 || !imageBase64.trim()) {
+    return null
+  }
+
+  const prompt = `Anda adalah asisten AI kasir toko digital yang bertugas menganalisis gambar bukti transfer pembayaran.
+Tolong baca dan ekstrak data dari gambar struk/bukti transfer ini dengan sangat teliti:
+
+Ekstrak informasi dalam format JSON persis seperti ini:
+{
+  "isValidProof": true,
+  "amount": 8500,
+  "sourceMethod": "GOPAY",
+  "destinationType": "QRIS",
+  "destinationName": "RULLHHH DIGITAL MARKET",
+  "status": "BERHASIL",
+  "senderName": "nama pengirim jika ada",
+  "notes": "catatan jika ada di struk",
+  "confidence": 0.95
+}
+
+Keterangan aturan:
+- isValidProof: true jika ini adalah gambar bukti transfer / struk pembayaran bank/e-wallet asli, false jika bukan.
+- amount: angka murni nominal uang yang berhasil dibayar/ditransfer (tanpa Rp atau titik).
+- sourceMethod: Bank atau E-Wallet asal pengirim (DANA, GOPAY, OVO, SHOPEEPAY, BCA, BRI, MANDIRI, BNI, SEABANK, BANK_TRANSFER, atau LAINNYA).
+- destinationType: QRIS, BANK_TRANSFER, atau EWALLET.
+- destinationName: Nama merchant / toko / rekening penerima (misal "RULLHHH DIGITAL MARKET").
+- status: BERHASIL, MENUNGGU, atau GAGAL.`
+
+  const candidateModels = [
+    'gemini-3.5-flash',
+    'gemini-3.8-flash',
+    'gemini-3.5-flash-lite',
+  ]
+
+  for (const modelName of candidateModels) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 6500)
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  inline_data: {
+                    mime_type: 'image/jpeg',
+                    data: imageBase64,
+                  },
+                },
+                { text: prompt },
+              ],
+            },
+          ],
+          generationConfig: {
+            response_mime_type: 'application/json',
+            temperature: 0.1,
+          },
+        }),
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        continue
+      }
+
+      const data = await response.json()
+      const contentText = data?.candidates?.[0]?.content?.parts?.[0]?.text
+      if (!contentText) continue
+
+      const parsed = JSON.parse(contentText)
+      if (!parsed || typeof parsed !== 'object') continue
+
+      const source = (parsed.sourceMethod || 'LAINNYA').toUpperCase()
+      const destType = (parsed.destinationType || 'QRIS').toUpperCase()
+      const destName = parsed.destinationName ? ` (${parsed.destinationName})` : ''
+      const summary = `${source} ➔ ${destType}${destName}`
+
+      return {
+        isValidProof: Boolean(parsed.isValidProof),
+        amount: typeof parsed.amount === 'number' && parsed.amount > 0 ? parsed.amount : null,
+        sourceMethod: source,
+        destinationType: destType,
+        destinationName: parsed.destinationName || null,
+        status: parsed.status || 'BERHASIL',
+        senderName: parsed.senderName || null,
+        notes: parsed.notes || null,
+        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.95,
+        summary,
+      }
+    } catch (e) {
+      clearTimeout(timeoutId)
+    }
+  }
+
+  return null
 }

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { generateReceiptNo } from '@/lib/utils'
-import { predictProductWithGemini } from '@/lib/gemini-matcher'
+import {
+  predictProductWithGemini,
+  analyzePaymentProofWithGemini,
+  PaymentAnalysis,
+} from '@/lib/gemini-matcher'
 
 // Helper: Ekstraksi nominal harga dari teks jika ada
 function extractPrice(text: string): number | null {
@@ -330,7 +334,7 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     if (action === 'proses') {
       const extractedPrice = extractPrice(note)
-      const requestedPrice =
+      let requestedPrice =
         body.price && typeof body.price === 'number' && body.price > 0
           ? body.price
           : extractedPrice !== null && extractedPrice > 0
@@ -350,15 +354,38 @@ export async function POST(request: NextRequest) {
         body.geminiApiKey ||
         null
 
+      // 0. Analisis Gambar Bukti Transfer (Gemini Vision Multimodal)
+      let paymentAnalysis: PaymentAnalysis | null = null
+      if (geminiApiKey && body.imageBase64) {
+        try {
+          paymentAnalysis = await analyzePaymentProofWithGemini(
+            body.imageBase64,
+            geminiApiKey
+          )
+          if (paymentAnalysis?.isValidProof) {
+            console.log(
+              `[Gemini Vision Struk]: ${paymentAnalysis.summary} (Nominal: Rp ${paymentAnalysis.amount}, Status: ${paymentAnalysis.status})`
+            )
+            // Jika ada nominal dari struk dan belum diisi harga manual, gunakan nominal struk!
+            if (paymentAnalysis.amount && (!requestedPrice || requestedPrice === 0)) {
+              requestedPrice = paymentAnalysis.amount
+            }
+          }
+        } catch (visErr: any) {
+          console.warn('[Gemini Vision Warning]:', visErr.message)
+        }
+      }
+
       let matchedProduct: any = null
       let aiReasoning = ''
 
       // 1. Coba Prediksi dengan Google Gemini AI (Jika API Key tersedia)
       if (geminiApiKey) {
         try {
+          const nominalHint = paymentAnalysis?.amount ? `, nominal struk: Rp ${paymentAnalysis.amount}` : ''
           const aiInputText = requestedProductName
-            ? `${note} (kandidat: ${requestedProductName})`
-            : note
+            ? `${note} (kandidat: ${requestedProductName}${nominalHint})`
+            : (paymentAnalysis?.amount ? `${note} (nominal struk: Rp ${paymentAnalysis.amount})` : note)
 
           const aiResult = await predictProductWithGemini(
             aiInputText,
@@ -444,7 +471,13 @@ export async function POST(request: NextRequest) {
 
       const finalProductName = requestedProductName || matchedProduct.name
 
-      const paymentMethod = detectPaymentMethod(note)
+      let paymentMethod = detectPaymentMethod(note)
+      if (paymentAnalysis?.sourceMethod && paymentAnalysis.sourceMethod !== 'LAINNYA') {
+        paymentMethod = paymentAnalysis.sourceMethod
+      }
+
+      const paymentDetailNote = paymentAnalysis?.summary ? ` [💳 ${paymentAnalysis.summary}]` : ''
+      const txNote = `[WA Bot${isResellerOrder ? ' (Reseller)' : ''}] ${groupName ? `(${groupName}) ` : ''}${note || 'Pesanan WhatsApp'}${paymentDetailNote}`
 
       // Cek apakah pelanggan sudah memiliki transaksi PENDING (misal sebelumnya tercatat WA-CUSTOM / Rp 0)
       let existingPendingTx: any = null
@@ -493,7 +526,7 @@ export async function POST(request: NextRequest) {
             total: finalPrice,
             paymentMethod,
             paymentAmount: finalPrice,
-            note: `[WA Bot${isResellerOrder ? ' (Reseller)' : ''}] ${groupName ? `(${groupName}) ` : ''}${note || 'Pesanan WhatsApp'}`,
+            note: txNote,
             items: {
               create: [
                 {
@@ -525,7 +558,7 @@ export async function POST(request: NextRequest) {
             paymentAmount: finalPrice,
             changeAmount: 0,
             status: 'PENDING',
-            note: `[WA Bot${isResellerOrder ? ' (Reseller)' : ''}] ${groupName ? `(${groupName}) ` : ''}${note || 'Pesanan WhatsApp'}`,
+            note: txNote,
             items: {
               create: [
                 {
@@ -620,6 +653,18 @@ export async function POST(request: NextRequest) {
         customerName: customer?.name || customerPhone,
         customerPhone: cleanPhone,
         status: 'PENDING',
+        paymentMethod,
+        paymentAnalysis: paymentAnalysis
+          ? {
+              source: paymentAnalysis.sourceMethod,
+              destination: paymentAnalysis.destinationName
+                ? `${paymentAnalysis.destinationType} (${paymentAnalysis.destinationName})`
+                : paymentAnalysis.destinationType,
+              amount: paymentAnalysis.amount,
+              status: paymentAnalysis.status,
+              summary: paymentAnalysis.summary,
+            }
+          : null,
         hasStockManagement: accountInfo.hasStockManagement,
         accountData: accountInfo.accountData,
         snk: accountInfo.snk,
