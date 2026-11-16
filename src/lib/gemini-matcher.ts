@@ -47,14 +47,16 @@ DAFTAR KATALOG PRODUK TOKO:
 ${JSON.stringify(candidatesList, null, 2)}
 
 ATURAN WAJIB:
-1. Perhatikan DURASI secara cermat:
-   - "setahun" = "1 tahun" = "12 bulan" = "1th" = "1thn" = "365 hari"
-   - "sebulan" = "1 bulan" = "30 hari" = "1b" = "1bln" = "30hari"
-   - "2 bulan" = "60 hari" = "2b" = "2bln"
-   - "seminggu" = "7 hari" = "1 minggu" = "1mgg" = "7hari"
-   - "sehari" = "1 hari" = "1hr"
-   JANGAN SEKALI-KALI tertukar antara "1 tahun / setahun" dengan "1 bulan"!
-   JANGAN SEKALI-KALI tertukar antara "1 bulan" dengan "7 hari / 1 minggu"!
+1. Perhatikan DURASI secara SANGAT KETAT dan DINAMIS (Mendukung Format ID & EN):
+   - Hari: "7day" / "7days" / "7hari" / "7 hari" / "seminggu" = 7 Hari. HANYA COCOKKAN ke varian 7 Hari!
+   - 14 Hari: "14day" / "14days" / "14hari" / "14 hari" / "2 minggu" = 14 Hari. HANYA COCOKKAN ke varian 14 Hari!
+   - 3 Hari: "3day" / "3days" / "3hari" / "3 hari" = 3 Hari.
+   - Bulan: "sebulan" = "1 bulan" = "30 hari" = "1b" = "1bln" = "30hari" = "1m" = "1month" = 1 Bulan.
+   - Multi Bulan: "2 bulan" / "2m", "3 bulan" / "3m", "6 bulan" / "6m" = Cocokkan ke durasi bulan yang tepat (3 bulan != 1 bulan!).
+   - Tahun: "setahun" = "1 tahun" = "12 bulan" = "1th" = "1thn" = "365 hari" = "1y" = "1year" = 1 Tahun.
+   - JANGAN SEKALI-KALI mencocokkan "7 day / 7 hari" ke varian "14 day" atau "1 bulan"!
+   - JANGAN SEKALI-KALI mencocokkan "14 day / 14 hari" ke varian "7 day" atau "1 bulan"!
+   - JANGAN SEKALI-KALI tertukar antara "1 tahun / setahun" dengan "1 bulan"!
 2. Perhatikan VARIAN & TIPE DEVICE:
    - "tv" / "tv only" / "smart tv" = Varian TV / Private TV
    - "mobile" / "hp" = Varian Mobile
@@ -68,18 +70,23 @@ ATURAN WAJIB:
    - "1p1u" = 1 Profil 1 User / Private
    - "sharing" / "share" = Akun sharing bersama
    - "private" / "priv" = Akun private
-3. Kembalikan HANYA format JSON valid tanpa markdown tambahan:
+3. Perhatikan NOMINAL HARGA:
+   - Jika di catatan / bukti transfer ada nominal uang (misal Rp 8.500 atau 8.5k atau 8500), prioritaskan produk yang harga jualnya cocok atau paling mendekati nominal tersebut.
+4. Kembalikan HANYA format JSON valid tanpa markdown tambahan:
 {
   "matchedId": "string ID produk yang cocok, atau null jika tidak ada yang cocok",
   "confidence": 0.95,
   "reasoning": "penjelasan singkat mengapa produk ini dipilih"
 }`
 
-    // Model candidate list: coba gemini-3.5-flash-lite terlebih dahulu, fallback ke gemini-3.8-flash & gemini-3.5-flash
+    // Model candidate list: coba model Gemini Flash resmi
     const candidateModels = [
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-2.5-flash',
+      'gemini-1.5-flash-8b',
       'gemini-3.5-flash-lite',
-      'gemini-3.8-flash',
-      'gemini-3.5-flash'
+      'gemini-3.8-flash'
     ]
 
     for (const modelName of candidateModels) {

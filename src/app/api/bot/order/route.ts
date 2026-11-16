@@ -35,6 +35,51 @@ function detectPaymentMethod(text: string): string {
   return 'QRIS'
 }
 
+// Helper: Normalisasi teks catatan dan durasi (Bahasa Indonesia & English)
+function normalizeText(str: string): string {
+  if (!str) return ''
+  return str.toLowerCase()
+    .replace(/[*_~`]/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\bse\s*tahun\b/gi, '1 tahun')
+    .replace(/\bse\s*bulan\b/gi, '1 bulan')
+    .replace(/\bse\s*minggu\b/gi, '1 minggu')
+    .replace(/\bse\s*hari\b/gi, '1 hari')
+    .replace(/\b(\d+)\s*u\s*(\d+)\s*b\b/gi, '$1u $2 bulan')
+    .replace(/\b(\d+)\s*(?:tahun|thn|th|years?|yr|yrs|y)\b/gi, '$1 tahun')
+    .replace(/\b(\d+)\s*(?:bulan|bln|months?|mo)\b/gi, '$1 bulan')
+    .replace(/\b(\d+)\s*m\b/gi, '$1 bulan')
+    .replace(/\b(\d+)\s*(?:minggu|mgg|weeks?|wk|wks|w)\b/gi, '$1 minggu')
+    .replace(/\b(\d+)\s*(?:hari|hr|days?|d)\b/gi, '$1 hari')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Helper: Ekstraksi durasi dinamis ke dalam jumlah hari standar
+function extractDurationInDays(text: string): number | null {
+  if (!text) return null
+  const norm = normalizeText(text)
+
+  if (/\b(lifetime|selamanya|permanen)\b/i.test(norm)) return 99999
+
+  const yMatch = norm.match(/\b(\d+)\s*tahun\b/i)
+  if (yMatch) return parseInt(yMatch[1], 10) * 365
+
+  const mMatch = norm.match(/\b(\d+)\s*bulan\b/i)
+  if (mMatch) {
+    const m = parseInt(mMatch[1], 10)
+    return m === 12 ? 365 : m * 30
+  }
+
+  const wMatch = norm.match(/\b(\d+)\s*minggu\b/i)
+  if (wMatch) return parseInt(wMatch[1], 10) * 7
+
+  const dMatch = norm.match(/\b(\d+)\s*hari\b/i)
+  if (dMatch) return parseInt(dMatch[1], 10)
+
+  return null
+}
+
 // Helper: Pencocokan Cerdas Kata Kunci Produk (Mendukung Varian Reseller)
 function matchProduct(
   note: string,
@@ -44,16 +89,7 @@ function matchProduct(
 ): any | null {
   if (!products || products.length === 0) return null
 
-  const rawLower = (note || '').toLowerCase()
-  const lowerNote = rawLower
-    .replace(/\bse\s*tahun\b/gi, '1 tahun')
-    .replace(/\bse\s*bulan\b/gi, '1 bulan')
-    .replace(/\bse\s*minggu\b/gi, '1 minggu')
-    .replace(/\bse\s*hari\b/gi, '1 hari')
-    .replace(/(\d+)\s*(bulan|bln)/g, '$1 bulan')
-    .replace(/(\d+)\s*(tahun|thn|th)/g, '$1 tahun')
-    .replace(/(\d+)\s*(hari|hr)/g, '$1 hari')
-    .replace(/(\d+)\s*(minggu|mgg)/g, '$1 minggu')
+  const lowerNote = normalizeText(note)
 
   // 1. Cari produk yang namanya persis ada di note
   for (const product of products) {
@@ -165,44 +201,27 @@ function matchProduct(
       score -= 35
     }
 
-    // Durasi: 1 Tahun / Setahun
-    const noteHas1Year = /\b(1\s*tahun|1th|1thn|12\s*bulan|12bln|setahun)\b/i.test(lowerNote)
-    const prodHas1Year = /\b(1\s*tahun|1\s*th|setahun)\b/i.test(pName)
+    // Dynamic Duration Matching (Mendukung 7 hari, 14 hari, 30 hari, 1 bulan, 3 bulan, 1 tahun, dsb)
+    const noteDays = extractDurationInDays(lowerNote)
+    const prodDays = extractDurationInDays(pName)
 
-    // Durasi: 1 Bulan / Sebulan / 30 Hari
-    const noteHas1Month = /\b(1\s*bulan|1b|1bln|30\s*hari|30hari|1m|sebulan)\b/i.test(lowerNote)
-    const prodHas1Month = /\b(1\s*bulan|1b|1bln|30\s*hari|individual)\b/i.test(pName)
-
-    // Durasi: 7 Hari / 1 Minggu / Seminggu
-    const noteHas7Days = /\b(7\s*hari|7hari|1\s*minggu|1mgg|1w|seminggu)\b/i.test(lowerNote)
-    const prodHas7Days = /\b(7\s*hari|7hari|1\s*minggu|1mgg)\b/i.test(pName)
-
-    // Durasi: 2 Bulan
-    const noteHas2Month = /\b(2\s*bulan|2b|2bln|60\s*hari|60hari|2m)\b/i.test(lowerNote)
-    const prodHas2Month = /\b(2\s*bulan|2b|2bln)\b/i.test(pName)
-
-    if (noteHas1Year && prodHas1Year) {
-      score += 40
-    } else if (noteHas1Year && (prodHas1Month || prodHas7Days)) {
-      score -= 50
+    if (noteDays !== null && prodDays !== null) {
+      if (noteDays === prodDays) {
+        score += 45 // Cocok durasi persis (7 hari == 7 hari, 14 hari == 14 hari, 3 bulan == 3 bulan, dsb)
+      } else {
+        score -= 50 // Penalti durasi tidak cocok (minta 7 hari tapi produk 14 hari / 1 bulan)
+      }
+    } else if (noteDays !== null && prodDays === null) {
+      score -= 15
+    } else if (noteDays === null && prodDays === 30) {
+      // Jika pembeli sama sekali TIDAK menyebutkan durasi, beri preferensi default ke 1 bulan
+      score += 2
     }
 
-    if (noteHas1Month && prodHas1Month) {
-      score += 25
-    } else if (noteHas1Month && (prodHas1Year || prodHas7Days)) {
-      score -= 50
-    }
-
-    if (noteHas7Days && prodHas7Days) {
-      score += 30
-    } else if (noteHas7Days && (prodHas1Month || prodHas1Year)) {
-      score -= 50
-    }
-
-    if (noteHas2Month && prodHas2Month) {
-      score += 30
-    } else if (noteHas2Month && (prodHas1Month || prodHas1Year)) {
-      score -= 50
+    // Cocok durasi teks langsung
+    const durationMatch = pName.match(/\b(\d+\s*(?:bulan|tahun|hari|minggu)|lifetime)\b/i)
+    if (durationMatch && lowerNote.includes(durationMatch[1])) {
+      score += 15
     }
 
     if (
@@ -214,7 +233,7 @@ function matchProduct(
 
     // Cocok harga
     if (price !== null && product.sellPrice === price) {
-      score += 15
+      score += 25
     }
 
     // Reseller preference

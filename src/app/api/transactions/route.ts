@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
             select: { id: true },
           })
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     if (!userExists) {
