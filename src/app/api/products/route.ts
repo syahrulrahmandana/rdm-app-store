@@ -47,12 +47,19 @@ export async function GET(request: NextRequest) {
       prisma.product.count({ where }),
     ])
 
-    return NextResponse.json({
-      products,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-    })
+    return NextResponse.json(
+      {
+        products,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit),
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=5, stale-while-revalidate=30',
+        },
+      }
+    )
   } catch (error) {
     console.error('Products GET error:', error)
     return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 })

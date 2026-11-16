@@ -285,10 +285,16 @@ export async function POST(request: NextRequest) {
     const isResellerOrder =
       Boolean(isReseller) || Boolean(groupName && /reseller|grosir/i.test(groupName))
 
-    // Ambil default admin user untuk relasi userId di Transaction
-    const adminUser =
-      (await prisma.user.findFirst({ where: { role: 'ADMIN' } })) ||
-      (await prisma.user.findFirst())
+    // Normalisasi No Telepon
+    const cleanPhone = (customerPhone || '').replace(/\D/g, '')
+
+    // Ambil data penting secara paralel menggunakan Promise.all untuk kecepatan maksimal
+    const [adminUser, existingCustomer, storeSetting, allProducts] = await Promise.all([
+      prisma.user.findFirst({ where: { role: 'ADMIN' } }).then((u) => u || prisma.user.findFirst()),
+      cleanPhone ? prisma.customer.findFirst({ where: { phone: { contains: cleanPhone } } }) : Promise.resolve(null),
+      prisma.store.findFirst({ select: { geminiApiKey: true, receiptPrefix: true } }),
+      action === 'proses' || action === 'done' ? prisma.product.findMany({ where: { isActive: true } }) : Promise.resolve([]),
+    ])
 
     if (!adminUser) {
       return NextResponse.json(
@@ -297,44 +303,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Normalisasi No Telepon
-    const cleanPhone = (customerPhone || '').replace(/\D/g, '')
-
     // Ambil / Buat Pelanggan (Customer)
-    let customer: any = null
-    if (cleanPhone) {
-      customer = await prisma.customer.findFirst({
-        where: { phone: { contains: cleanPhone } },
-      })
-      if (!customer) {
-        const isNameOnlyDigits = customerName && /^\d+$/.test(customerName.trim())
-        let displayName = ''
+    let customer: any = existingCustomer
+    if (cleanPhone && !customer) {
+      const isNameOnlyDigits = customerName && /^\d+$/.test(customerName.trim())
+      let displayName = ''
 
-        if (customerName && !isNameOnlyDigits) {
-          displayName = isResellerOrder ? `${customerName} [Reseller]` : customerName
-        } else {
-          displayName = isResellerOrder
-            ? (cleanPhone.length >= 15 ? 'Reseller WhatsApp' : `Reseller ${cleanPhone.slice(-4)}`)
-            : (cleanPhone.length >= 15 ? 'Pelanggan WhatsApp' : `Pelanggan ${cleanPhone.slice(-4)}`)
-        }
-
-        customer = await prisma.customer.create({
-          data: {
-            name: displayName,
-            phone: cleanPhone,
-          },
-        })
+      if (customerName && !isNameOnlyDigits) {
+        displayName = isResellerOrder ? `${customerName} [Reseller]` : customerName
+      } else {
+        displayName = isResellerOrder
+          ? (cleanPhone.length >= 15 ? 'Reseller WhatsApp' : `Reseller ${cleanPhone.slice(-4)}`)
+          : (cleanPhone.length >= 15 ? 'Pelanggan WhatsApp' : `Pelanggan ${cleanPhone.slice(-4)}`)
       }
+
+      customer = await prisma.customer.create({
+        data: {
+          name: displayName,
+          phone: cleanPhone,
+        },
+      })
     }
 
     // =========================================================================
     // AKSI: PROSES (Catat Transaksi Pending)
     // =========================================================================
     if (action === 'proses') {
-      const allProducts = await prisma.product.findMany({
-        where: { isActive: true },
-      })
-
       const extractedPrice = extractPrice(note)
       const requestedPrice =
         body.price && typeof body.price === 'number' && body.price > 0
@@ -349,10 +343,6 @@ export async function POST(request: NextRequest) {
           : ''
 
       // Ambil API Key Gemini (dari setting database toko, env, atau payload request)
-      const storeSetting = await prisma.store.findUnique({
-        where: { id: 'store-1' },
-        select: { geminiApiKey: true },
-      })
       const geminiApiKey =
         storeSetting?.geminiApiKey ||
         process.env.GEMINI_API_KEY ||
@@ -446,8 +436,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const store = await prisma.store.findFirst()
-      const newReceiptNo = generateReceiptNo(store?.receiptPrefix || 'RDM')
+      const newReceiptNo = generateReceiptNo(storeSetting?.receiptPrefix || 'RDM')
       const finalPrice =
         requestedPrice !== null && requestedPrice > 0
           ? requestedPrice
@@ -833,9 +822,6 @@ export async function POST(request: NextRequest) {
       }
 
       // Jika tidak ada transaksi pending sebelumnya, langsung buatkan transaksi COMPLETED
-      const allProducts = await prisma.product.findMany({
-        where: { isActive: true },
-      })
       const extractedPrice = extractPrice(note)
       const requestedPrice =
         body.price && typeof body.price === 'number' && body.price > 0
@@ -850,10 +836,6 @@ export async function POST(request: NextRequest) {
           : ''
 
       // Ambil API Key Gemini (dari setting database toko, env, atau payload request)
-      const storeSetting = await prisma.store.findUnique({
-        where: { id: 'store-1' },
-        select: { geminiApiKey: true },
-      })
       const geminiApiKey =
         storeSetting?.geminiApiKey ||
         process.env.GEMINI_API_KEY ||
@@ -941,8 +923,7 @@ export async function POST(request: NextRequest) {
       const finalProductName =
         requestedProductName || matchedProduct?.name || 'Pesanan Langsung'
 
-      const store = await prisma.store.findFirst()
-      const newReceiptNo = generateReceiptNo(store?.receiptPrefix || 'RDM')
+      const newReceiptNo = generateReceiptNo(storeSetting?.receiptPrefix || 'RDM')
 
       const directCompleted = await prisma.transaction.create({
         data: {

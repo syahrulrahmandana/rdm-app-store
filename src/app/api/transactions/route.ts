@@ -75,15 +75,18 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const store = await prisma.store.findFirst()
-    const receiptNo = generateReceiptNo(store?.receiptPrefix || 'RDM')
-
-    // Ambil data produk untuk mengunci snapshot HPP (buyPrice) saat transaksi terjadi
     const productIds = body.items.map((i: any) => i.productId).filter(Boolean)
-    const dbProducts = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, buyPrice: true, manageStock: true },
-    })
+
+    // Ambil data store prefix dan snapshot produk secara paralel
+    const [store, dbProducts] = await Promise.all([
+      prisma.store.findFirst({ select: { receiptPrefix: true } }),
+      prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, buyPrice: true, manageStock: true },
+      }),
+    ])
+
+    const receiptNo = generateReceiptNo(store?.receiptPrefix || 'RDM')
     const productMap = new Map(dbProducts.map((p) => [p.id, p]))
 
     // Pastikan userId valid dan terdaftar di database (mencegah error Foreign Key 'system' saat session browser loading)

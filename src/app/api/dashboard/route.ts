@@ -11,51 +11,79 @@ export async function GET(request: NextRequest) {
     const startOfToday = getWIBStartOfDay(now)
     const startOfPeriod = new Date(startOfToday.getTime() - (period - 1) * 24 * 60 * 60 * 1000)
 
-    // Today's stats (sejak 00:00:00 WIB hari ini)
-    const todayTransactions = await prisma.transaction.findMany({
-      where: {
-        createdAt: { gte: startOfToday },
-        status: 'COMPLETED',
-      },
-    })
+    // Eksekusi semua query dashboard secara paralel menggunakan Promise.all untuk kecepatan maksimal
+    const [
+      todayTransactions,
+      allProducts,
+      totalCustomers,
+      periodTransactions,
+      topProductsData,
+      recentTransactions,
+      paymentStats,
+    ] = await Promise.all([
+      // 1. Transaksi hari ini
+      prisma.transaction.findMany({
+        where: {
+          createdAt: { gte: startOfToday },
+          status: 'COMPLETED',
+        },
+      }),
+
+      // 2. Semua produk aktif (menghitung total & stok menipis sekaligus dalam 1 query)
+      prisma.product.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          name: true,
+          stock: true,
+          minStock: true,
+          sku: true,
+        },
+      }),
+
+      // 3. Total pelanggan
+      prisma.customer.count(),
+
+      // 4. Transaksi periode grafik
+      prisma.transaction.findMany({
+        where: {
+          createdAt: { gte: startOfPeriod },
+          status: 'COMPLETED',
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+
+      // 5. Top produk
+      prisma.transactionItem.groupBy({
+        by: ['productId', 'productName'],
+        _sum: { quantity: true, subtotal: true },
+        orderBy: { _sum: { quantity: 'desc' } },
+        take: 10,
+      }),
+
+      // 6. Transaksi terbaru
+      prisma.transaction.findMany({
+        where: { status: 'COMPLETED' },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: { user: { select: { name: true } } },
+      }),
+
+      // 7. Statistik metode pembayaran
+      prisma.transaction.groupBy({
+        by: ['paymentMethod'],
+        where: { status: 'COMPLETED', createdAt: { gte: startOfPeriod } },
+        _count: true,
+        _sum: { total: true },
+      }),
+    ])
 
     const todayRevenue = todayTransactions.reduce((sum, t) => sum + t.total, 0)
+    const totalProducts = allProducts.length
 
-    // Total products
-    const totalProducts = await prisma.product.count({ where: { isActive: true } })
-
-    // Low stock products
-    const lowStockProducts = await prisma.product.findMany({
-      where: {
-        isActive: true,
-        stock: { lte: prisma.product.fields?.minStock as any || 0 },
-      },
-    })
-
-    // Get all products and filter low stock in JS
-    const allProducts = await prisma.product.findMany({ where: { isActive: true } })
     const lowStockList = allProducts
       .filter((p) => p.stock <= p.minStock)
       .sort((a, b) => a.stock - b.stock)
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        stock: p.stock,
-        minStock: p.minStock,
-        sku: p.sku,
-      }))
-
-    // Total customers
-    const totalCustomers = await prisma.customer.count()
-
-    // Sales chart data
-    const periodTransactions = await prisma.transaction.findMany({
-      where: {
-        createdAt: { gte: startOfPeriod },
-        status: 'COMPLETED',
-      },
-      orderBy: { createdAt: 'asc' },
-    })
 
     const salesByDay: Record<string, { total: number; count: number }> = {}
     for (let i = 0; i < period; i++) {
@@ -78,35 +106,11 @@ export async function GET(request: NextRequest) {
       count: data.count,
     }))
 
-    // Top products
-    const topProductsData = await prisma.transactionItem.groupBy({
-      by: ['productId', 'productName'],
-      _sum: { quantity: true, subtotal: true },
-      orderBy: { _sum: { quantity: 'desc' } },
-      take: 10,
-    })
-
     const topProducts = topProductsData.map((p) => ({
       name: p.productName,
       sold: p._sum.quantity || 0,
       revenue: p._sum.subtotal || 0,
     }))
-
-    // Recent transactions
-    const recentTransactions = await prisma.transaction.findMany({
-      where: { status: 'COMPLETED' },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      include: { user: { select: { name: true } } },
-    })
-
-    // Payment method stats
-    const paymentStats = await prisma.transaction.groupBy({
-      by: ['paymentMethod'],
-      where: { status: 'COMPLETED', createdAt: { gte: startOfPeriod } },
-      _count: true,
-      _sum: { total: true },
-    })
 
     const paymentMethodStats = paymentStats.map((p) => ({
       method: p.paymentMethod,
