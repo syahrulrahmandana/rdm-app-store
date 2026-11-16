@@ -9,6 +9,7 @@ import {
   HiOutlineMagnifyingGlass,
   HiOutlineArrowPath,
   HiOutlineChatBubbleLeftRight,
+  HiOutlinePrinter,
 } from 'react-icons/hi2'
 import toast from 'react-hot-toast'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
@@ -55,6 +56,35 @@ export default function TransactionsPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+  // Store settings for receipt header
+  const [storeInfo, setStoreInfo] = useState<{
+    name: string
+    address?: string | null
+    phone?: string | null
+  } | null>(null)
+
+  // Receipt modal states for reprinting
+  const [selectedReceipt, setSelectedReceipt] = useState<Transaction | null>(null)
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((s) => {
+        if (s && !s.error) setStoreInfo(s)
+      })
+      .catch(() => {})
+  }, [])
+
+  const handlePrintReceipt = (tx: Transaction) => {
+    setSelectedReceipt(tx)
+    setIsReceiptOpen(true)
+  }
+
+  const triggerBrowserPrint = () => {
+    window.print()
+  }
 
   useEffect(() => {
     fetchTransactions()
@@ -461,6 +491,26 @@ export default function TransactionsPage() {
                         >
                           Hapus
                         </button>
+                      ) : tx.status === 'COMPLETED' ? (
+                        <button
+                          onClick={() => handlePrintReceipt(tx)}
+                          className="btn btn-sm btn-ghost"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 6,
+                            padding: '4px 8px',
+                            fontSize: 12,
+                            color: 'var(--accent-primary)',
+                            fontWeight: 600,
+                          }}
+                          title="Cetak Struk Transaksi"
+                        >
+                          <HiOutlinePrinter size={15} />
+                          <span>Cetak Struk</span>
+                        </button>
                       ) : (
                         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>
                       )}
@@ -495,6 +545,173 @@ export default function TransactionsPage() {
           </div>
         )}
       </div>
+
+      {/* Modal Cetak Struk Ulang */}
+      {isReceiptOpen && selectedReceipt && (
+        <div className="modal-overlay" onClick={() => setIsReceiptOpen(false)}>
+          <div
+            className="modal-content animate-slide-up"
+            style={{ maxWidth: 360, background: '#fff', color: '#000', padding: 0, overflow: 'hidden' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Dialog (Hanya tampil di layar, disembunyikan saat print) */}
+            <div
+              className="no-print"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                borderBottom: '1px solid #e2e8f0',
+                background: '#f8fafc',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 14, color: '#1e293b' }}>
+                <HiOutlinePrinter size={18} color="#2563eb" />
+                <span>Cetak Ulang Struk</span>
+              </div>
+              <button
+                className="btn btn-icon btn-ghost"
+                onClick={() => setIsReceiptOpen(false)}
+                style={{ color: '#64748b', fontSize: 18 }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Template Struk Thermal POS */}
+            <div className="receipt">
+              <div className="receipt-header">
+                <h3 style={{ fontSize: 16, margin: 0, textTransform: 'uppercase', fontWeight: 800 }}>
+                  {storeInfo?.name || 'RDM APP STORE'}
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#334155' }}>
+                  {storeInfo?.address || 'Layanan Akun & Produk Digital Premium'}
+                </p>
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#334155' }}>
+                  WA/CS: {storeInfo?.phone || '087844538339'}
+                </p>
+              </div>
+
+              <div style={{ fontSize: 11, lineHeight: 1.5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>No. Nota:</span>
+                  <span style={{ fontWeight: 700 }}>{selectedReceipt.receiptNo}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Tanggal:</span>
+                  <span>
+                    {new Date(selectedReceipt.createdAt).toLocaleString('id-ID', {
+                      timeZone: 'Asia/Jakarta',
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })} WIB
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Kasir:</span>
+                  <span>{selectedReceipt.user?.name || 'Admin'}</span>
+                </div>
+                {selectedReceipt.customer && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Customer:</span>
+                    <span>{selectedReceipt.customer.name}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="receipt-divider" />
+
+              {/* Rincian Produk / Aplikasi yang dibeli */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(selectedReceipt.items || []).map((item, idx) => (
+                  <div key={item.id || idx}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: 11 }}>
+                      <span>{item.productName}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#475569' }}>
+                      <span>
+                        {item.quantity} x {formatCurrency(item.price)}
+                      </span>
+                      <span>{formatCurrency(item.subtotal)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="receipt-divider" />
+
+              {/* Rincian Total */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Subtotal:</span>
+                  <span>{formatCurrency(selectedReceipt.subtotal ?? selectedReceipt.total)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 13, marginTop: 2 }}>
+                  <span>TOTAL:</span>
+                  <span>{formatCurrency(selectedReceipt.total)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Metode:</span>
+                  <span>{selectedReceipt.paymentMethod}</span>
+                </div>
+              </div>
+
+              {selectedReceipt.note && (
+                <>
+                  <div className="receipt-divider" />
+                  <div style={{ fontSize: 10, color: '#475569' }}>
+                    <span>Catatan: {selectedReceipt.note}</span>
+                  </div>
+                </>
+              )}
+
+              <div className="receipt-divider" />
+
+              <div style={{ textAlign: 'center', fontSize: 10, color: '#64748b', lineHeight: 1.4 }}>
+                <p style={{ margin: 0, fontWeight: 600 }}>Terima Kasih Atas Pembelian Anda!</p>
+                <p style={{ margin: '2px 0 0' }}>Simpan struk ini sebagai bukti pembayaran resmi.</p>
+              </div>
+            </div>
+
+            {/* Footer Aksi Dialog (Disembunyikan saat print) */}
+            <div
+              className="no-print"
+              style={{
+                display: 'flex',
+                gap: 8,
+                padding: 14,
+                background: '#f8fafc',
+                borderTop: '1px solid #e2e8f0',
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ flex: 1, color: '#475569' }}
+                onClick={() => setIsReceiptOpen(false)}
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{
+                  flex: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                }}
+                onClick={triggerBrowserPrint}
+              >
+                <HiOutlinePrinter size={16} />
+                <span>Cetak Struk</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

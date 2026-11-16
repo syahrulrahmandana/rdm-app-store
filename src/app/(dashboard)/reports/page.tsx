@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { formatCurrency, formatNumber, getPaymentMethodLabel } from '@/lib/utils'
-import { HiOutlineArrowDownTray, HiOutlineCalendar, HiOutlineTrash } from 'react-icons/hi2'
+import { HiOutlineArrowDownTray, HiOutlineCalendar, HiOutlineTrash, HiOutlinePrinter } from 'react-icons/hi2'
 import { useSession } from 'next-auth/react'
 import toast from 'react-hot-toast'
 import {
@@ -49,14 +49,31 @@ interface PaymentMethod {
   total: number
 }
 
+interface TransactionItemDetail {
+  id: string
+  productName: string
+  quantity: number
+  price: number
+  buyPrice: number
+  subtotal: number
+}
+
 interface TransactionItem {
   id: string
   receiptNo: string
   total: number
+  subtotal?: number
+  discount?: number
   profit: number
   paymentMethod: string
+  paymentAmount?: number
+  changeAmount?: number
+  note?: string | null
   itemCount: number
   userName: string
+  customerName?: string | null
+  customerPhone?: string | null
+  items: TransactionItemDetail[]
   createdAt: string
 }
 
@@ -83,6 +100,35 @@ export default function ReportsPage() {
   const [voidingTxId, setVoidingTxId] = useState('')
   const [voidReason, setVoidReason] = useState('')
   const [isSubmittingVoid, setIsSubmittingVoid] = useState(false)
+
+  // Store info for receipts
+  const [storeInfo, setStoreInfo] = useState<{
+    name: string
+    address?: string | null
+    phone?: string | null
+  } | null>(null)
+
+  // Receipt modal states for reprinting
+  const [selectedReceipt, setSelectedReceipt] = useState<TransactionItem | null>(null)
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((s) => {
+        if (s && !s.error) setStoreInfo(s)
+      })
+      .catch(() => {})
+  }, [])
+
+  const handlePrintReceipt = (tx: TransactionItem) => {
+    setSelectedReceipt(tx)
+    setIsReceiptOpen(true)
+  }
+
+  const triggerBrowserPrint = () => {
+    window.print()
+  }
 
   useEffect(() => {
     fetchReport()
@@ -117,7 +163,7 @@ export default function ReportsPage() {
     
     // 2. DAFTAR DETAIL TRANSAKSI
     csvContent += '=== DAFTAR DETAIL TRANSAKSI ===\n'
-    csvContent += 'Nomor Struk,Tanggal & Waktu,Kasir,Metode Pembayaran,Jumlah Barang,Total Belanja,Keuntungan (Profit)\n'
+    csvContent += 'Nomor Struk,Tanggal & Waktu,Kasir,Produk / Aplikasi,Metode Pembayaran,Jumlah Barang,Total Belanja,Keuntungan (Profit)\n'
     data.transactions.forEach((t) => {
       const formattedDate = new Date(t.createdAt).toLocaleString('id-ID', {
         timeZone: 'Asia/Jakarta',
@@ -127,7 +173,8 @@ export default function ReportsPage() {
         hour: '2-digit',
         minute: '2-digit',
       }).replace(',', '') // Hapus koma pemisah detik/menit untuk keamanan CSV
-      csvContent += `${t.receiptNo},${formattedDate},${t.userName},${t.paymentMethod},${t.itemCount},${t.total},${t.profit || 0}\n`
+      const productsStr = (t.items || []).map((i) => `${i.productName} (${i.quantity}x)`).join('; ') || 'Item'
+      csvContent += `${t.receiptNo},${formattedDate},${t.userName},"${productsStr.replace(/"/g, '""')}",${t.paymentMethod},${t.itemCount},${t.total},${t.profit || 0}\n`
     })
     csvContent += '\n'
     
@@ -371,33 +418,164 @@ export default function ReportsPage() {
 
       {/* Daftar Transaksi Terbaru */}
       <div className="card" style={{ padding: 20 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>📝 Daftar Transaksi Terbaru</h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>📝 Daftar Transaksi Terbaru</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+              Rincian produk/aplikasi yang dibeli, profit bersih, serta cetak ulang struk thermal.
+            </p>
+          </div>
+          <span className="badge badge-blue" style={{ fontSize: 12 }}>
+            {data.transactions.length} Transaksi Ditampilkan
+          </span>
+        </div>
+
         <div className="table-container">
           <table className="table">
             <thead>
               <tr>
                 <th>Waktu</th>
                 <th>No. Nota</th>
+                <th>Aplikasi / Produk</th>
                 <th>Kasir</th>
-                <th>Jumlah Item</th>
-                <th>Metode Pembayaran</th>
-                <th>Total Transaksi</th>
+                <th>Metode</th>
+                <th>Total Belanja</th>
+                <th>Profit (Laba)</th>
+                <th style={{ textAlign: 'center' }}>Struk</th>
                 <th style={{ textAlign: 'right' }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
               {data.transactions.map((tx) => (
                 <tr key={tx.id}>
-                  <td>{new Date(tx.createdAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'short', timeStyle: 'short' })}</td>
-                  <td className="font-mono" style={{ fontWeight: 600 }}>{tx.receiptNo}</td>
-                  <td>{tx.userName}</td>
-                  <td>{tx.itemCount} item</td>
+                  {/* Waktu */}
                   <td>
-                    <span className="badge badge-blue">{getPaymentMethodLabel(tx.paymentMethod)}</span>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>
+                      {new Date(tx.createdAt).toLocaleDateString('id-ID', {
+                        timeZone: 'Asia/Jakarta',
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {new Date(tx.createdAt).toLocaleTimeString('id-ID', {
+                        timeZone: 'Asia/Jakarta',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      WIB
+                    </div>
                   </td>
-                  <td className="font-mono" style={{ fontWeight: 600, color: 'var(--accent-green)' }}>
+
+                  {/* No. Nota & Customer */}
+                  <td>
+                    <span className="font-mono" style={{ fontWeight: 600, fontSize: 12 }}>
+                      {tx.receiptNo}
+                    </span>
+                    {tx.customerName && (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                        👤 {tx.customerName}
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Aplikasi / Produk yang Dibeli */}
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {tx.items && tx.items.length > 0 ? (
+                        tx.items.map((it, itIdx) => (
+                          <div key={it.id || itIdx} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span
+                              style={{
+                                fontWeight: 600,
+                                color: 'var(--text-primary)',
+                                fontSize: 13,
+                              }}
+                            >
+                              {it.productName}
+                            </span>
+                            <span
+                              className="badge"
+                              style={{
+                                fontSize: 10,
+                                padding: '1px 6px',
+                                background: 'rgba(99, 102, 241, 0.12)',
+                                color: 'var(--accent-purple)',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {it.quantity}x
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Kasir */}
+                  <td>
+                    <span style={{ fontSize: 13 }}>{tx.userName}</span>
+                  </td>
+
+                  {/* Metode Bayar */}
+                  <td>
+                    <span className="badge badge-blue" style={{ fontSize: 11 }}>
+                      {getPaymentMethodLabel(tx.paymentMethod)}
+                    </span>
+                  </td>
+
+                  {/* Total Belanja */}
+                  <td className="font-mono" style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                     {formatCurrency(tx.total)}
                   </td>
+
+                  {/* Profit (Laba Bersih) */}
+                  <td>
+                    <div
+                      className="font-mono"
+                      style={{
+                        fontWeight: 700,
+                        color: (tx.profit || 0) >= 0 ? 'var(--accent-green)' : 'var(--accent-red)',
+                        fontSize: 13,
+                      }}
+                    >
+                      {formatCurrency(tx.profit || 0)}
+                    </div>
+                    {tx.total > 0 && (
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                        {Math.round(((tx.profit || 0) / tx.total) * 100)}% margin
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Tombol Cetak Struk Ulang */}
+                  <td style={{ textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      onClick={() => handlePrintReceipt(tx)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '5px 10px',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        color: 'var(--accent-primary)',
+                        fontWeight: 600,
+                      }}
+                      title="Cetak Struk Transaksi Ulang"
+                    >
+                      <HiOutlinePrinter size={15} />
+                      <span>Cetak Struk</span>
+                    </button>
+                  </td>
+
+                  {/* Tombol Void */}
                   <td style={{ textAlign: 'right' }}>
                     <button
                       className="btn btn-icon btn-ghost"
@@ -412,7 +590,7 @@ export default function ReportsPage() {
               ))}
               {data.transactions.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+                  <td colSpan={9} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
                     Belum ada transaksi pada periode ini
                   </td>
                 </tr>
@@ -421,6 +599,191 @@ export default function ReportsPage() {
           </table>
         </div>
       </div>
+
+      {/* Modal Cetak Struk Ulang */}
+      {isReceiptOpen && selectedReceipt && (
+        <div className="modal-overlay" onClick={() => setIsReceiptOpen(false)}>
+          <div
+            className="modal-content animate-slide-up"
+            style={{ maxWidth: 360, background: '#fff', color: '#000', padding: 0, overflow: 'hidden' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Dialog (Hanya tampil di layar, disembunyikan saat print) */}
+            <div
+              className="no-print"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                borderBottom: '1px solid #e2e8f0',
+                background: '#f8fafc',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 14, color: '#1e293b' }}>
+                <HiOutlinePrinter size={18} color="#2563eb" />
+                <span>Cetak Ulang Struk</span>
+              </div>
+              <button
+                className="btn btn-icon btn-ghost"
+                onClick={() => setIsReceiptOpen(false)}
+                style={{ color: '#64748b', fontSize: 18 }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Template Struk Thermal POS */}
+            <div className="receipt">
+              <div className="receipt-header">
+                <h3 style={{ fontSize: 16, margin: 0, textTransform: 'uppercase', fontWeight: 800 }}>
+                  {storeInfo?.name || 'RDM APP STORE'}
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#334155' }}>
+                  {storeInfo?.address || 'Layanan Akun & Produk Digital Premium'}
+                </p>
+                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#334155' }}>
+                  WA/CS: {storeInfo?.phone || '087844538339'}
+                </p>
+              </div>
+
+              <div style={{ fontSize: 11, lineHeight: 1.5 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>No. Nota:</span>
+                  <span style={{ fontWeight: 700 }}>{selectedReceipt.receiptNo}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Tanggal:</span>
+                  <span>
+                    {new Date(selectedReceipt.createdAt).toLocaleString('id-ID', {
+                      timeZone: 'Asia/Jakarta',
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })} WIB
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Kasir:</span>
+                  <span>{selectedReceipt.userName || 'Admin'}</span>
+                </div>
+                {selectedReceipt.customerName && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Customer:</span>
+                    <span>{selectedReceipt.customerName}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="receipt-divider" />
+
+              {/* Rincian Produk / Aplikasi yang dibeli */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {(selectedReceipt.items || []).map((item, idx) => (
+                  <div key={item.id || idx}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: 11 }}>
+                      <span>{item.productName}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#475569' }}>
+                      <span>
+                        {item.quantity} x {formatCurrency(item.price)}
+                      </span>
+                      <span>{formatCurrency(item.subtotal)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="receipt-divider" />
+
+              {/* Rincian Total */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Subtotal:</span>
+                  <span>{formatCurrency(selectedReceipt.subtotal ?? selectedReceipt.total)}</span>
+                </div>
+                {typeof selectedReceipt.discount === 'number' && selectedReceipt.discount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626' }}>
+                    <span>Diskon:</span>
+                    <span>-{formatCurrency(selectedReceipt.discount)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 13, marginTop: 2 }}>
+                  <span>TOTAL:</span>
+                  <span>{formatCurrency(selectedReceipt.total)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Metode:</span>
+                  <span>{getPaymentMethodLabel(selectedReceipt.paymentMethod)}</span>
+                </div>
+                {selectedReceipt.paymentAmount && selectedReceipt.paymentAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Bayar:</span>
+                    <span>{formatCurrency(selectedReceipt.paymentAmount)}</span>
+                  </div>
+                )}
+                {selectedReceipt.changeAmount && selectedReceipt.changeAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Kembalian:</span>
+                    <span>{formatCurrency(selectedReceipt.changeAmount)}</span>
+                  </div>
+                )}
+              </div>
+
+              {selectedReceipt.note && (
+                <>
+                  <div className="receipt-divider" />
+                  <div style={{ fontSize: 10, color: '#475569' }}>
+                    <span>Catatan: {selectedReceipt.note}</span>
+                  </div>
+                </>
+              )}
+
+              <div className="receipt-divider" />
+
+              <div style={{ textAlign: 'center', fontSize: 10, color: '#64748b', lineHeight: 1.4 }}>
+                <p style={{ margin: 0, fontWeight: 600 }}>Terima Kasih Atas Pembelian Anda!</p>
+                <p style={{ margin: '2px 0 0' }}>Simpan struk ini sebagai bukti pembayaran resmi.</p>
+              </div>
+            </div>
+
+            {/* Footer Aksi Dialog (Disembunyikan saat print) */}
+            <div
+              className="no-print"
+              style={{
+                display: 'flex',
+                gap: 8,
+                padding: 14,
+                background: '#f8fafc',
+                borderTop: '1px solid #e2e8f0',
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-ghost"
+                style={{ flex: 1, color: '#475569' }}
+                onClick={() => setIsReceiptOpen(false)}
+              >
+                Tutup
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{
+                  flex: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                }}
+                onClick={triggerBrowserPrint}
+              >
+                <HiOutlinePrinter size={16} />
+                <span>Cetak Struk</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Alasan Pembatalan (Void) */}
       {isVoidModalOpen && (

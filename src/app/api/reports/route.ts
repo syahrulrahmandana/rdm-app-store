@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
         include: {
           items: { include: { product: { select: { name: true, buyPrice: true, sellPrice: true } } } },
           user: { select: { name: true } },
+          customer: { select: { name: true, phone: true } },
         },
         orderBy: { createdAt: 'desc' },
       })
@@ -155,10 +156,28 @@ export async function GET(request: NextRequest) {
             id: t.id,
             receiptNo: t.receiptNo,
             total: t.total,
+            subtotal: t.subtotal,
+            discount: t.discount,
             profit,
             paymentMethod: t.paymentMethod,
+            paymentAmount: t.paymentAmount,
+            changeAmount: t.changeAmount,
+            note: t.note,
             itemCount: t.items.reduce((sum, item) => sum + item.quantity, 0), // Use total quantity of all items
             userName: t.user.name,
+            customerName: t.customer?.name || null,
+            customerPhone: t.customer?.phone || null,
+            items: t.items.map((item) => ({
+              id: item.id,
+              productName: item.productName,
+              quantity: item.quantity,
+              price: item.price,
+              buyPrice:
+                typeof item.buyPrice === 'number' && item.buyPrice > 0
+                  ? item.buyPrice
+                  : item.product?.buyPrice || 0,
+              subtotal: item.subtotal,
+            })),
             createdAt: t.createdAt,
           }
         }),
