@@ -457,37 +457,105 @@ export async function POST(request: NextRequest) {
 
       const paymentMethod = detectPaymentMethod(note)
 
-      // Buat Transaksi di Database
-      const transaction = await prisma.transaction.create({
-        data: {
-          receiptNo: newReceiptNo,
-          userId: adminUser.id,
-          customerId: customer?.id || null,
-          subtotal: finalPrice,
-          total: finalPrice,
-          paymentMethod,
-          paymentAmount: finalPrice,
-          changeAmount: 0,
-          status: 'PENDING',
-          note: `[WA Bot${isResellerOrder ? ' (Reseller)' : ''}] ${groupName ? `(${groupName}) ` : ''}${note || 'Pesanan WhatsApp'}`,
-          items: {
-            create: [
-              {
-                productId: matchedProduct.id,
-                productName: finalProductName,
-                quantity: 1,
-                price: finalPrice,
-                buyPrice: matchedProduct?.buyPrice || 0, // Kunci HPP pada detik pesanan masuk
-                subtotal: finalPrice,
-              },
-            ],
+      // Cek apakah pelanggan sudah memiliki transaksi PENDING (misal sebelumnya tercatat WA-CUSTOM / Rp 0)
+      let existingPendingTx: any = null
+      if (customer?.id) {
+        existingPendingTx = await prisma.transaction.findFirst({
+          where: {
+            customerId: customer.id,
+            status: 'PENDING',
           },
-        },
-        include: {
-          items: true,
-          customer: true,
-        },
-      })
+          orderBy: { createdAt: 'desc' },
+          include: { items: true },
+        })
+      }
+
+      // Deteksi jika transaksi PENDING tersebut adalah custom / Rp 0 yang perlu diperbarui
+      const isCustomPending = Boolean(
+        existingPendingTx &&
+          (existingPendingTx.total === 0 ||
+            existingPendingTx.items.some(
+              (it: any) =>
+                it.productName.toUpperCase().includes('CUSTOM') ||
+                it.price === 0 ||
+                it.productId === matchedProduct.id
+            ))
+      )
+
+      let transaction: any = null
+
+      if (isCustomPending && existingPendingTx) {
+        // Kembalikan akun lama jika sebelumnya sempat terkunci
+        await prisma.digitalAccount.updateMany({
+          where: { transactionId: existingPendingTx.id },
+          data: { status: 'AVAILABLE', transactionId: null, soldAt: null },
+        })
+
+        // Hapus item lama yang bernilai custom/0
+        await prisma.transactionItem.deleteMany({
+          where: { transactionId: existingPendingTx.id },
+        })
+
+        // Perbarui data transaksi yang sudah ada (tidak bikin duplikat)
+        transaction = await prisma.transaction.update({
+          where: { id: existingPendingTx.id },
+          data: {
+            subtotal: finalPrice,
+            total: finalPrice,
+            paymentMethod,
+            paymentAmount: finalPrice,
+            note: `[WA Bot${isResellerOrder ? ' (Reseller)' : ''}] ${groupName ? `(${groupName}) ` : ''}${note || 'Pesanan WhatsApp'}`,
+            items: {
+              create: [
+                {
+                  productId: matchedProduct.id,
+                  productName: finalProductName,
+                  quantity: 1,
+                  price: finalPrice,
+                  buyPrice: matchedProduct?.buyPrice || 0,
+                  subtotal: finalPrice,
+                },
+              ],
+            },
+          },
+          include: {
+            items: true,
+            customer: true,
+          },
+        })
+      } else {
+        // Buat Transaksi Baru di Database
+        transaction = await prisma.transaction.create({
+          data: {
+            receiptNo: newReceiptNo,
+            userId: adminUser.id,
+            customerId: customer?.id || null,
+            subtotal: finalPrice,
+            total: finalPrice,
+            paymentMethod,
+            paymentAmount: finalPrice,
+            changeAmount: 0,
+            status: 'PENDING',
+            note: `[WA Bot${isResellerOrder ? ' (Reseller)' : ''}] ${groupName ? `(${groupName}) ` : ''}${note || 'Pesanan WhatsApp'}`,
+            items: {
+              create: [
+                {
+                  productId: matchedProduct.id,
+                  productName: finalProductName,
+                  quantity: 1,
+                  price: finalPrice,
+                  buyPrice: matchedProduct?.buyPrice || 0, // Kunci HPP pada detik pesanan masuk
+                  subtotal: finalPrice,
+                },
+              ],
+            },
+          },
+          include: {
+            items: true,
+            customer: true,
+          },
+        })
+      }
 
       // Pengelolaan Stok Akun Digital (HANYA AKTIF JIKA manageStock === true)
       const accountInfo = {
@@ -556,6 +624,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         action: 'proses',
+        isUpdated: Boolean(isCustomPending),
         receiptNo: transaction.receiptNo,
         productName: finalProductName,
         price: finalPrice,
