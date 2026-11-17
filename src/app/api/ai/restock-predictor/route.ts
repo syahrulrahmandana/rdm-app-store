@@ -20,11 +20,11 @@ export async function GET(request: NextRequest) {
       orderBy: { name: 'asc' },
     })
 
-    // 2. Ambil total terjual per produk selama 7 hari terakhir
+    // 2. Ambil total terjual per produk selama 7 hari terakhir (termasuk pesanan masuk COMPLETED & PENDING dari Bot WA)
     const recentSoldItems = await prisma.transactionItem.findMany({
       where: {
         transaction: {
-          status: 'COMPLETED',
+          status: { in: ['COMPLETED', 'PENDING'] },
           createdAt: { gte: sinceDate },
         },
       },

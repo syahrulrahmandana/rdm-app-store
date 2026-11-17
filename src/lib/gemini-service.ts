@@ -269,16 +269,21 @@ export async function predictRestockUrgency(
     if (p.stock <= 0) {
       days = 0
       urgency = 'CRITICAL'
-      urgencyLabel = 'Habis (0 Stok)'
-      aiAdvice = p.manageStock
-        ? 'Stok brankas akun kosong! Segera masukkan akun baru ke brankas agar order otomatis WA berjalan.'
-        : 'Stok produk habis (0). Segera isi stok atau perbarui jumlah stok produk.'
+      if (p.soldCount > 0) {
+        urgencyLabel = `🔥 Habis & Laris (${p.soldCount} Terjual)`
+        aiAdvice = `Sangat mendesak! Produk ini sangat laris (${p.soldCount} pcs terjual baru-baru ini) tapi stok saat ini 0. Segera restock agar tidak kehilangan potensi omset!`
+      } else {
+        urgencyLabel = 'Habis (0 Stok)'
+        aiAdvice = p.manageStock
+          ? 'Stok brankas akun kosong! Segera masukkan akun baru ke brankas.'
+          : 'Stok produk habis (0). Segera isi stok atau perbarui jumlah stok produk.'
+      }
     } else if (dailyRate > 0) {
       days = Math.round((p.stock / dailyRate) * 10) / 10
       if (days <= 1.5) {
         urgency = 'CRITICAL'
-        urgencyLabel = `Segera Habis (~${days} Hari)`
-        aiAdvice = `Laju penjualan tinggi: ${dailyRate} unit/hari dengan sisa stok ${p.stock}. Segera restock sebelum habis!`
+        urgencyLabel = `🔥 Segera Habis (~${days} Hari)`
+        aiAdvice = `Laju penjualan tinggi: ${dailyRate} unit/hari dengan sisa stok ${p.stock}. Segera restock sebelum kehabisan!`
       } else if (days <= 3.5) {
         urgency = 'WARNING'
         urgencyLabel = `Menipis (~${days} Hari)`
@@ -301,7 +306,7 @@ export async function predictRestockUrgency(
       } else {
         urgency = 'SAFE'
         urgencyLabel = `Aman (${p.stock} Tersedia)`
-        aiAdvice = `Stok melimpah (${p.stock} unit). Belum ada penjualan baru dalam ${window} hari terakhir.`
+        aiAdvice = `Stok aman (${p.stock} unit). Belum ada penjualan baru dalam ${window} hari terakhir.`
       }
     }
 
@@ -324,13 +329,58 @@ export async function predictRestockUrgency(
     }
   })
 
-  // Sort by urgency: CRITICAL first, then WARNING, then SAFE, then lowest daysUntilDepleted
+  // URUTAN PRIORITAS CERDAS:
+  // Produk yang PALING LARIS dan SEGERA BUTUH STOK (stok habis / menipis) SELALU DITAMPILKAN DI PALING ATAS!
   items.sort((a, b) => {
-    const weight = { CRITICAL: 0, WARNING: 1, SAFE: 2 }
-    if (weight[a.urgency] !== weight[b.urgency]) {
-      return weight[a.urgency] - weight[b.urgency]
+    function getTier(x: RestockPredictionItem) {
+      // Tier 1: Habis / Segera Habis (< 1.5 hari) DAN Laris (ada penjualan aktif) -> PRIORITAS TERTINGGI!
+      if (x.urgency === 'CRITICAL' && x.soldLast7Days > 0) return 1
+      // Tier 2: Menipis (2-7 hari) DAN Laris (ada penjualan aktif)
+      if (x.urgency === 'WARNING' && x.soldLast7Days > 0) return 2
+      // Tier 3: Aman (> 7 hari) tapi ada penjualan aktif
+      if (x.urgency === 'SAFE' && x.soldLast7Days > 0) return 3
+      // Tier 4: Habis (0 stok), tapi belum ada penjualan baru dalam 7 hari terakhir (dormant)
+      if (x.urgency === 'CRITICAL' && x.soldLast7Days === 0) return 4
+      // Tier 5: Stok menipis, tapi belum ada penjualan
+      if (x.urgency === 'WARNING' && x.soldLast7Days === 0) return 5
+      // Tier 6: Aman, belum ada penjualan
+      return 6
     }
-    return a.daysUntilDepleted - b.daysUntilDepleted
+
+    const tierA = getTier(a)
+    const tierB = getTier(b)
+
+    if (tierA !== tierB) {
+      return tierA - tierB
+    }
+
+    // Tier 1 (Habis & Laris): Urutkan dari yang PALING BANYAK TERJUAL (terlaris paling atas)
+    if (tierA === 1) {
+      if (b.soldLast7Days !== a.soldLast7Days) {
+        return b.soldLast7Days - a.soldLast7Days
+      }
+      return b.dailyBurnRate - a.dailyBurnRate
+    }
+
+    // Tier 2 (Menipis & Laris): Urutkan dari sisa hari tercepat, lalu penjualan terbanyak
+    if (tierA === 2) {
+      if (a.daysUntilDepleted !== b.daysUntilDepleted) {
+        return a.daysUntilDepleted - b.daysUntilDepleted
+      }
+      return b.soldLast7Days - a.soldLast7Days
+    }
+
+    // Tier 3 (Aman & Laris): Penjualan terbanyak
+    if (tierA === 3) {
+      return b.soldLast7Days - a.soldLast7Days
+    }
+
+    // Tier 4 (Habis tapi 0 penjualan 7 hari): Urutkan A-Z
+    if (tierA === 4) {
+      return a.productName.localeCompare(b.productName)
+    }
+
+    return a.productName.localeCompare(b.productName)
   })
 
   const criticalCount = items.filter((i) => i.urgency === 'CRITICAL').length

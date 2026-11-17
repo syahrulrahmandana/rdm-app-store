@@ -129,7 +129,7 @@ export default function InventoryPage() {
   const [restockData, setRestockData] = useState<RestockData | null>(null)
   const [loadingRestock, setLoadingRestock] = useState(false)
   const [isRestockModalOpen, setIsRestockModalOpen] = useState(false)
-  const [restockFilter, setRestockFilter] = useState<'ALL' | 'CRITICAL' | 'WARNING' | 'SAFE'>('ALL')
+  const [restockFilter, setRestockFilter] = useState<'ALL' | 'HOT_CRITICAL' | 'CRITICAL' | 'WARNING' | 'SAFE'>('ALL')
   const [restockSearch, setRestockSearch] = useState('')
 
   useEffect(() => {
@@ -421,12 +421,21 @@ export default function InventoryPage() {
     })
   }, [products, search, selectedCategory, filterType])
 
+  const hotCriticalCount = useMemo(() => {
+    if (!restockData?.items) return 0
+    return restockData.items.filter((i) => i.urgency === 'CRITICAL' && i.soldLast7Days > 0).length
+  }, [restockData])
+
   // Filtered Restock Items
   const filteredRestockItems = useMemo(() => {
     if (!restockData?.items) return []
     return restockData.items.filter((item) => {
-      const matchesFilter =
-        restockFilter === 'ALL' ? true : restockFilter === item.urgency
+      let matchesFilter = true
+      if (restockFilter === 'HOT_CRITICAL') {
+        matchesFilter = item.urgency === 'CRITICAL' && item.soldLast7Days > 0
+      } else if (restockFilter !== 'ALL') {
+        matchesFilter = restockFilter === item.urgency
+      }
       const matchesSearch =
         item.productName.toLowerCase().includes(restockSearch.toLowerCase()) ||
         item.sku.toLowerCase().includes(restockSearch.toLowerCase())
@@ -1360,12 +1369,29 @@ export default function InventoryPage() {
                   >
                     Semua ({restockData?.items.length || 0})
                   </button>
+                  {hotCriticalCount > 0 && (
+                    <button
+                      className={`btn ${restockFilter === 'HOT_CRITICAL' ? 'btn-primary' : 'btn-ghost'}`}
+                      style={{
+                        fontSize: 12,
+                        padding: '4px 10px',
+                        height: 'auto',
+                        background: restockFilter === 'HOT_CRITICAL' ? 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)' : 'rgba(239, 68, 68, 0.12)',
+                        color: restockFilter === 'HOT_CRITICAL' ? '#fff' : 'var(--accent-red)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        fontWeight: 700,
+                      }}
+                      onClick={() => setRestockFilter('HOT_CRITICAL')}
+                    >
+                      🔥 Laris &amp; Habis ({hotCriticalCount})
+                    </button>
+                  )}
                   <button
                     className={`btn ${restockFilter === 'CRITICAL' ? 'btn-primary' : 'btn-ghost'}`}
                     style={{ fontSize: 12, padding: '4px 10px', height: 'auto' }}
                     onClick={() => setRestockFilter('CRITICAL')}
                   >
-                    🚨 Kritis ({restockData?.criticalCount || 0})
+                    🚨 Semua Kritis ({restockData?.criticalCount || 0})
                   </button>
                   <button
                     className={`btn ${restockFilter === 'WARNING' ? 'btn-primary' : 'btn-ghost'}`}
@@ -1415,16 +1441,32 @@ export default function InventoryPage() {
                     </thead>
                     <tbody>
                       {filteredRestockItems.map((item) => {
+                        const isHotCritical = item.urgency === 'CRITICAL' && item.soldLast7Days > 0
                         const isCritical = item.urgency === 'CRITICAL'
                         const isWarning = item.urgency === 'WARNING'
 
                         return (
-                          <tr key={item.productId} style={{ background: isCritical ? 'rgba(239, 68, 68, 0.03)' : undefined }}>
+                          <tr
+                            key={item.productId}
+                            style={{
+                              background: isHotCritical
+                                ? 'rgba(239, 68, 68, 0.08)'
+                                : isCritical
+                                ? 'rgba(239, 68, 68, 0.02)'
+                                : undefined,
+                              borderLeft: isHotCritical ? '3px solid var(--accent-red)' : undefined,
+                            }}
+                          >
                             <td>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                                   {item.productName}
                                 </span>
+                                {isHotCritical && (
+                                  <span className="badge badge-red font-mono" style={{ fontSize: 10, padding: '1px 6px' }}>
+                                    🔥 Laris
+                                  </span>
+                                )}
                                 {item.manageStock ? (
                                   <span className="badge badge-purple" style={{ fontSize: 10, padding: '1px 5px' }}>
                                     🔑 Brankas
@@ -1453,7 +1495,15 @@ export default function InventoryPage() {
                                 {item.currentStock} {item.manageStock ? 'akun' : 'unit'}
                               </span>
                             </td>
-                            <td className="font-mono">{item.soldLast7Days} pcs</td>
+                            <td className="font-mono">
+                              {item.soldLast7Days > 0 ? (
+                                <span style={{ fontWeight: 700, color: 'var(--accent-red)' }}>
+                                  🔥 {item.soldLast7Days} pcs
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)' }}>0 pcs</span>
+                              )}
+                            </td>
                             <td className="font-mono">
                               <span style={{ fontWeight: 600 }}>{item.dailyBurnRate}</span>
                               <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>
@@ -1465,7 +1515,11 @@ export default function InventoryPage() {
                                 className={`badge ${
                                   isCritical ? 'badge-red' : isWarning ? 'badge-yellow' : 'badge-green'
                                 }`}
-                                style={{ fontSize: 11, fontWeight: 600 }}
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  background: isHotCritical ? 'rgba(239, 68, 68, 0.2)' : undefined,
+                                }}
                               >
                                 {item.urgencyLabel}
                               </span>
