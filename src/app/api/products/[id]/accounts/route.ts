@@ -118,13 +118,14 @@ export async function POST(
       },
     })
 
-    // Jika produk mengaktifkan manageStock, sinkronkan jumlah stock produk!
-    if (product.manageStock) {
-      await prisma.product.update({
-        where: { id },
-        data: { stock: availableCount },
-      })
-    }
+    // Otomatis aktifkan manageStock dan sinkronkan jumlah stok produk dengan brankas akun!
+    await prisma.product.update({
+      where: { id },
+      data: {
+        manageStock: true,
+        stock: availableCount,
+      },
+    })
 
     // Catat Riwayat Mutasi Stok
     try {

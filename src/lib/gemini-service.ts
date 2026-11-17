@@ -225,6 +225,7 @@ export interface RestockPredictionItem {
   productName: string
   sku: string
   currentStock: number
+  manageStock: boolean
   soldLast7Days: number
   dailyBurnRate: number
   daysUntilDepleted: number
@@ -237,6 +238,7 @@ export interface RestockPredictionItem {
 /**
  * FEATURE 3: AI Smart Restock Predictor
  * Computes burn rate and predicts when stock will run out with AI recommendations
+ * Now covers ALL products (both digital vault accounts and manual/standard stock items)
  */
 export async function predictRestockUrgency(
   products: Array<{
@@ -250,37 +252,60 @@ export async function predictRestockUrgency(
   }>,
   apiKey?: string | null
 ): Promise<{ items: RestockPredictionItem[]; criticalCount: number; warningCount: number } | null> {
-  const managedProducts = products.filter((p) => p.manageStock)
-  if (!managedProducts.length) {
+  if (!products || !products.length) {
     return { items: [], criticalCount: 0, warningCount: 0 }
   }
 
-  // Hitung metrik matematika dasar dulu
-  const items: RestockPredictionItem[] = managedProducts.map((p) => {
+  // Hitung metrik per produk (SEMUA produk, baik manageStock maupun manual/bebas stok)
+  const items: RestockPredictionItem[] = products.map((p) => {
     const window = Math.max(1, p.daysWindow || 7)
     const dailyRate = Math.round((p.soldCount / window) * 10) / 10
-    const safeRate = dailyRate > 0 ? dailyRate : 0.2 // minimal baseline
 
-    let days = Math.round((p.stock / safeRate) * 10) / 10
-    if (p.stock === 0) days = 0
-
+    let days = 999
     let urgency: 'CRITICAL' | 'WARNING' | 'SAFE' = 'SAFE'
     let urgencyLabel = 'Stok Aman'
+    let aiAdvice = ''
 
-    if (p.stock === 0) {
+    if (p.stock <= 0) {
+      days = 0
       urgency = 'CRITICAL'
       urgencyLabel = 'Habis (0 Stok)'
-    } else if (days <= 1.5) {
-      urgency = 'CRITICAL'
-      urgencyLabel = 'Segera Habis (< 24-36 Jam)'
-    } else if (days <= 3.5) {
-      urgency = 'WARNING'
-      urgencyLabel = 'Menipis (Habis 2-3 Hari)'
+      aiAdvice = p.manageStock
+        ? 'Stok brankas akun kosong! Segera masukkan akun baru ke brankas agar order otomatis WA berjalan.'
+        : 'Stok produk habis (0). Segera isi stok atau perbarui jumlah stok produk.'
+    } else if (dailyRate > 0) {
+      days = Math.round((p.stock / dailyRate) * 10) / 10
+      if (days <= 1.5) {
+        urgency = 'CRITICAL'
+        urgencyLabel = `Segera Habis (~${days} Hari)`
+        aiAdvice = `Laju penjualan tinggi: ${dailyRate} unit/hari dengan sisa stok ${p.stock}. Segera restock sebelum habis!`
+      } else if (days <= 3.5) {
+        urgency = 'WARNING'
+        urgencyLabel = `Menipis (~${days} Hari)`
+        aiAdvice = `Penjualan aktif (${dailyRate} unit/hari). Stok diprediksi habis dalam 2-3 hari.`
+      } else if (days <= 7) {
+        urgency = 'WARNING'
+        urgencyLabel = `Waspada (~${days} Hari)`
+        aiAdvice = `Stok tersisa untuk ~${Math.round(days)} hari ke depan. Jadwalkan restock berkala.`
+      } else {
+        urgency = 'SAFE'
+        urgencyLabel = `Aman (~${Math.round(days)} Hari)`
+        aiAdvice = `Stok aman untuk ~${Math.round(days)} hari ke depan dengan penjualan ${dailyRate} unit/hari.`
+      }
     } else {
-      urgency = 'SAFE'
-      urgencyLabel = `Aman (~${Math.round(days)} Hari)`
+      // dailyRate === 0 (Belum ada penjualan baru di periode window)
+      if (p.stock <= 3) {
+        urgency = 'WARNING'
+        urgencyLabel = `Stok Rendah (${p.stock} Unit)`
+        aiAdvice = `Stok sangat sedikit (${p.stock} unit). Persiapkan persediaan tambahan untuk antisipasi pesanan masuk.`
+      } else {
+        urgency = 'SAFE'
+        urgencyLabel = `Aman (${p.stock} Tersedia)`
+        aiAdvice = `Stok melimpah (${p.stock} unit). Belum ada penjualan baru dalam ${window} hari terakhir.`
+      }
     }
 
+    const safeRate = dailyRate > 0 ? dailyRate : 0.5
     const recommendedRestock = Math.max(10, Math.ceil(safeRate * 14))
 
     return {
@@ -288,24 +313,18 @@ export async function predictRestockUrgency(
       productName: p.name,
       sku: p.sku,
       currentStock: p.stock,
+      manageStock: p.manageStock,
       soldLast7Days: p.soldCount,
       dailyBurnRate: dailyRate,
       daysUntilDepleted: days,
       urgency,
       urgencyLabel,
       recommendedRestockQty: recommendedRestock,
-      aiAdvice:
-        p.stock === 0
-          ? 'Stok sudah kosong! Potensi omset terhambat. Segera restock akun baru.'
-          : days <= 1.5
-            ? `Tersisa ${p.stock} akun dengan laju penjualan ${dailyRate} akun/hari. Restock min. ${recommendedRestock} akun sebelum besok!`
-            : days <= 3.5
-              ? `Laju penjualan stabil. Jadwalkan restock ${recommendedRestock} akun dalam 2 hari ke depan.`
-              : 'Stok masih mencukupi untuk kebutuhan operasional saat ini.',
+      aiAdvice,
     }
   })
 
-  // Sort by urgency: CRITICAL first, then WARNING, then SAFE
+  // Sort by urgency: CRITICAL first, then WARNING, then SAFE, then lowest daysUntilDepleted
   items.sort((a, b) => {
     const weight = { CRITICAL: 0, WARNING: 1, SAFE: 2 }
     if (weight[a.urgency] !== weight[b.urgency]) {

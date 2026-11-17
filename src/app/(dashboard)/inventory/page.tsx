@@ -63,6 +63,7 @@ interface RestockPredictionItem {
   productName: string
   sku: string
   currentStock: number
+  manageStock: boolean
   soldLast7Days: number
   dailyBurnRate: number
   daysUntilDepleted: number
@@ -143,9 +144,9 @@ export default function InventoryPage() {
       const data = await res.json()
       if (data.products) {
         setProducts(data.products)
-        if (!batchSelectedProductId) {
+        if (!batchSelectedProductId && data.products.length > 0) {
           const firstManaged = data.products.find((p: ProductStockItem) => p.manageStock)
-          if (firstManaged) setBatchSelectedProductId(firstManaged.id)
+          setBatchSelectedProductId(firstManaged ? firstManaged.id : data.products[0].id)
         }
       }
       if (data.movements) setMovements(data.movements)
@@ -291,9 +292,9 @@ export default function InventoryPage() {
   const handleOpenBatchParserForProduct = (productId?: string) => {
     if (productId) {
       setBatchSelectedProductId(productId)
-    } else if (!batchSelectedProductId) {
+    } else if (!batchSelectedProductId && products.length > 0) {
       const firstManaged = products.find((p) => p.manageStock)
-      if (firstManaged) setBatchSelectedProductId(firstManaged.id)
+      setBatchSelectedProductId(firstManaged ? firstManaged.id : products[0].id)
     }
     setBatchRawText('')
     setBatchParsedAccounts([])
@@ -1127,13 +1128,11 @@ export default function InventoryPage() {
                   style={{ width: '100%', fontSize: 14 }}
                 >
                   <option value="">-- Pilih Produk --</option>
-                  {products
-                    .filter((p) => p.manageStock)
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.sku}) — Stok Saat Ini: {p.stock} akun
-                      </option>
-                    ))}
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.sku}) — {p.manageStock ? `🔑 Brankas: ${p.stock} akun` : `📦 Stok: ${p.stock}`}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -1293,7 +1292,7 @@ export default function InventoryPage() {
                   AI Smart Restock Predictor
                 </h3>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                  Prediksi laju kehabisan stok digital (Burn Rate) berdasarkan histori penjualan 7 hari terakhir dengan saran restock cerdas dari Gemini AI.
+                  Prediksi laju kehabisan stok semua produk digital &amp; fisik (Burn Rate) berdasarkan histori penjualan 7 hari terakhir dengan saran restock cerdas dari Gemini AI.
                 </p>
               </div>
               <button className="btn btn-icon btn-ghost" onClick={() => setIsRestockModalOpen(false)}>×</button>
@@ -1422,8 +1421,19 @@ export default function InventoryPage() {
                         return (
                           <tr key={item.productId} style={{ background: isCritical ? 'rgba(239, 68, 68, 0.03)' : undefined }}>
                             <td>
-                              <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                                {item.productName}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                  {item.productName}
+                                </span>
+                                {item.manageStock ? (
+                                  <span className="badge badge-purple" style={{ fontSize: 10, padding: '1px 5px' }}>
+                                    🔑 Brankas
+                                  </span>
+                                ) : (
+                                  <span className="badge badge-blue" style={{ fontSize: 10, padding: '1px 5px' }}>
+                                    📦 Umum
+                                  </span>
+                                )}
                               </div>
                               <div className="font-mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                                 {item.sku}
@@ -1432,7 +1442,7 @@ export default function InventoryPage() {
                             <td>
                               <span
                                 className={`badge ${
-                                  item.currentStock === 0
+                                  item.currentStock <= 0
                                     ? 'badge-red'
                                     : item.currentStock <= 5
                                     ? 'badge-yellow'
@@ -1440,13 +1450,15 @@ export default function InventoryPage() {
                                 } font-mono`}
                                 style={{ fontWeight: 700 }}
                               >
-                                {item.currentStock} akun
+                                {item.currentStock} {item.manageStock ? 'akun' : 'unit'}
                               </span>
                             </td>
                             <td className="font-mono">{item.soldLast7Days} pcs</td>
                             <td className="font-mono">
                               <span style={{ fontWeight: 600 }}>{item.dailyBurnRate}</span>
-                              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>akun/hari</span>
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>
+                                {item.manageStock ? 'akun/hari' : 'unit/hari'}
+                              </span>
                             </td>
                             <td>
                               <span
@@ -1460,7 +1472,7 @@ export default function InventoryPage() {
                             </td>
                             <td style={{ maxWidth: 260, fontSize: 12 }}>
                               <div style={{ fontWeight: 600, color: 'var(--accent-purple)', marginBottom: 2 }}>
-                                Rekomendasi: +{item.recommendedRestockQty} akun
+                                Rekomendasi: +{item.recommendedRestockQty} {item.manageStock ? 'akun' : 'unit'}
                               </div>
                               <div style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.3 }}>
                                 {item.aiAdvice}
