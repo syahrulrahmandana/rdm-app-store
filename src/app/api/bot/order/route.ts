@@ -411,8 +411,8 @@ export async function POST(request: NextRequest) {
             console.log(
               `[AI Vision Struk]: ${paymentAnalysis.summary} (Nominal: Rp ${paymentAnalysis.amount}, Status: ${paymentAnalysis.status})`
             )
-            // Jika ada nominal dari struk dan belum diisi harga manual, gunakan nominal struk!
-            if (paymentAnalysis.amount && (!requestedPrice || requestedPrice === 0)) {
+            // Jika ada nominal dari struk dan bukan admin yang mengetik harga manual secara eksplisit, gunakan nominal struk!
+            if (paymentAnalysis.amount && paymentAnalysis.amount > 0 && !body.adminManualPrice) {
               requestedPrice = paymentAnalysis.amount
             }
           }
@@ -510,43 +510,59 @@ export async function POST(request: NextRequest) {
 
       const newReceiptNo = generateReceiptNo(storeSetting?.receiptPrefix || 'RDM')
       const baseUnitPrice = matchedProduct.sellPrice || 0
-      const paidAmount =
-        requestedPrice !== null && requestedPrice > 0
-          ? requestedPrice
-          : 0
+      const textQty = extractQuantity(note)
+
+      // Jika AI berhasil membaca nominal struk transfer asli, jadikan sebagai prioritas utama
+      let paidAmount = requestedPrice !== null && requestedPrice > 0 ? requestedPrice : 0
+      if (
+        paymentAnalysis?.isValidProof &&
+        paymentAnalysis.amount &&
+        paymentAnalysis.amount > 0 &&
+        !body.adminManualPrice
+      ) {
+        paidAmount = paymentAnalysis.amount
+      }
 
       // Logika Kalkulasi Kuantitas Dinamis & Akurasi Nominal Pembayaran
       let targetQuantity = 1
       let finalUnitPrice = baseUnitPrice > 0 ? baseUnitPrice : (paidAmount > 0 ? paidAmount : 0)
       let finalTotalPrice = baseUnitPrice > 0 ? baseUnitPrice : (paidAmount > 0 ? paidAmount : 0)
 
-      const textQty = extractQuantity(note)
-
       if (baseUnitPrice > 0 && paidAmount > 0) {
         const quotient = Math.floor(paidAmount / baseUnitPrice)
         const remainder = paidAmount % baseUnitPrice
 
         if (remainder === 0 && quotient >= 2) {
-          // Pembeli mentransfer nominal pas kelipatan harga produk! (Contoh: Capcut 5.500 x 3 = 16.500)
+          // Kasus A: Pembeli mentransfer nominal pas kelipatan harga produk! (Contoh: Capcut 5.500 x 3 = 16.500)
           targetQuantity = quotient
           finalUnitPrice = baseUnitPrice
           finalTotalPrice = paidAmount
         } else if (textQty && textQty >= 2) {
-          // Di catatan pembeli menyebut kuantitas tertentu (misal: "beli 3 capcut 15rb")
-          targetQuantity = textQty
-          finalUnitPrice = Math.round(paidAmount / textQty)
-          finalTotalPrice = paidAmount
+          // Kasus B: Di catatan tertera kuantitas beli >= 2 (contoh: "3 akun" atau "beli 3")
+          if (paidAmount <= baseUnitPrice) {
+            // SANGAT KRUSIAL: Jika paidAmount <= baseUnitPrice (misal Rp 5.500 dari list.json/default),
+            // angka tersebut adalah HARGA SATUAN (1 akun), BUKAN total untuk 3 akun!
+            // Total harus dihitung: baseUnitPrice * textQty (misal 5.500 * 3 = 16.500)
+            targetQuantity = textQty
+            finalUnitPrice = baseUnitPrice
+            finalTotalPrice = baseUnitPrice * textQty
+          } else {
+            // Pembeli mentransfer nominal borongan / negosiasi (misal 3 akun transfer Rp 15.000)
+            targetQuantity = textQty
+            finalUnitPrice = Math.round(paidAmount / textQty)
+            finalTotalPrice = paidAmount
+          }
         } else {
-          // Pembelian 1 pcs dengan harga transfer khusus / custom
+          // Kasus C: Pembelian 1 unit normal
           targetQuantity = 1
           finalUnitPrice = paidAmount
           finalTotalPrice = paidAmount
         }
       } else if (textQty && textQty >= 2) {
-        // Kuantitas tertera di catatan tanpa nominal bukti bayar
+        // Kasus D: Kuantitas tertera di catatan tanpa nominal bukti bayar
         targetQuantity = textQty
-        finalUnitPrice = baseUnitPrice
-        finalTotalPrice = baseUnitPrice * textQty
+        finalUnitPrice = baseUnitPrice > 0 ? baseUnitPrice : (paidAmount > 0 ? paidAmount : 0)
+        finalTotalPrice = finalUnitPrice * textQty
       } else {
         targetQuantity = 1
         finalUnitPrice = paidAmount > 0 ? paidAmount : baseUnitPrice
