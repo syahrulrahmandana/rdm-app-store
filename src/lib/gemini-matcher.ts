@@ -275,3 +275,200 @@ Keterangan aturan:
 
   return null
 }
+
+/**
+ * Helper: Parse teks respon AI / OCR menjadi objek PaymentAnalysis terstruktur
+ */
+function parseOCRText(raw: string): PaymentAnalysis | null {
+  if (!raw || !raw.trim()) return null
+  const text = raw.replace(/-=-n--/g, '\n')
+
+  // 1. Coba deteksi jika respon mengandung format JSON
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0])
+      if (parsed.amount || parsed.sourceMethod) {
+        const source = (parsed.sourceMethod || 'LAINNYA').toUpperCase()
+        const destType = (parsed.destinationType || 'QRIS').toUpperCase()
+        const destName = parsed.destinationName ? ` (${parsed.destinationName})` : ''
+        const summary = `${source} ➔ ${destType}${destName} (GPT-4o)`
+        return {
+          isValidProof: parsed.isValidProof ?? true,
+          amount:
+            typeof parsed.amount === 'number'
+              ? parsed.amount
+              : parseInt(String(parsed.amount).replace(/\D/g, ''), 10) || null,
+          sourceMethod: source,
+          destinationType: destType,
+          destinationName: parsed.destinationName || null,
+          status: (parsed.status || 'BERHASIL').toUpperCase(),
+          senderName: parsed.senderName || null,
+          notes: parsed.notes || null,
+          confidence: 0.95,
+          summary,
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 2. Parser teks berbasis Regex (Mendukung respon point/markdown dari model AI)
+  let amount: number | null = null
+  const amtMatch =
+    text.match(
+      /(?:nominal|jumlah|total|sebesar|transfer)[^\d\n\r]*?(?:rp\.?\s*)?(\d{1,3}(?:\.\d{3})+|\d{4,8})/i
+    ) || text.match(/(?:rp\.?\s*)(\d{1,3}(?:\.\d{3})+|\d{4,8})/i)
+  if (amtMatch) {
+    amount = parseInt(amtMatch[1].replace(/\./g, ''), 10)
+  }
+
+  let sourceMethod = 'LAINNYA'
+  const lower = text.toLowerCase()
+  if (lower.includes('gopay')) sourceMethod = 'GOPAY'
+  else if (lower.includes('dana')) sourceMethod = 'DANA'
+  else if (lower.includes('ovo')) sourceMethod = 'OVO'
+  else if (lower.includes('shopeepay') || lower.includes('spay')) sourceMethod = 'SHOPEEPAY'
+  else if (lower.includes('bca')) sourceMethod = 'BCA'
+  else if (lower.includes('bri')) sourceMethod = 'BRI'
+  else if (lower.includes('mandiri')) sourceMethod = 'MANDIRI'
+  else if (lower.includes('bni')) sourceMethod = 'BNI'
+  else if (lower.includes('seabank')) sourceMethod = 'SEABANK'
+
+  let destinationName: string | null = null
+  const destMatch = text.match(
+    /(?:penerima|merchant|toko|rekening tujuan)[^\:\n]*?\:\s*\*?([^\*\n\r]+)/i
+  )
+  if (destMatch) {
+    destinationName = destMatch[1].replace(/[*_~`]/g, '').trim()
+  }
+
+  let status = 'BERHASIL'
+  if (/gagal|dibatalkan|kadaluarsa|failed/i.test(text)) status = 'GAGAL'
+  else if (/menunggu|pending|diproses/i.test(text)) status = 'MENUNGGU'
+
+  const destType = 'QRIS'
+  const destName = destinationName ? ` (${destinationName})` : ''
+  const summary = `${sourceMethod} ➔ ${destType}${destName} (GPT-4o)`
+
+  return {
+    isValidProof: Boolean(amount || sourceMethod !== 'LAINNYA'),
+    amount,
+    sourceMethod,
+    destinationType: destType,
+    destinationName: destinationName || 'RULLHHH DIGITAL MARKET',
+    status,
+    senderName: null,
+    notes: null,
+    confidence: 0.95,
+    summary,
+  }
+}
+
+/**
+ * OpenAI GPT-4o-Mini Text & Vision AI Analyzer via ONLym-Api
+ * Mengunggah gambar ke temporary host lalu menganalisis bukti struk dengan model GPT-4o-Mini
+ */
+export async function analyzePaymentProofWithGPT4oMini(
+  imageBase64: string,
+  apiKey?: string | null
+): Promise<PaymentAnalysis | null> {
+  const finalApiKey = apiKey?.trim() || process.env.ONLYM_API_KEY || 'ONLym-ad4f16'
+  if (!imageBase64 || !imageBase64.trim()) return null
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 7500) // Timeout 7.5 detik
+
+  try {
+    // 1. Upload buffer gambar ke tmpfiles.org untuk mendapatkan direct public URL
+    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '')
+    const buffer = Buffer.from(cleanBase64, 'base64')
+    const formData = new FormData()
+    formData.append('file', new Blob([buffer], { type: 'image/jpeg' }), 'proof.jpg')
+
+    const uploadRes = await fetch('https://tmpfiles.org/api/v1/upload', {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    })
+
+    if (!uploadRes.ok) {
+      clearTimeout(timeoutId)
+      return null
+    }
+
+    const uploadData = await uploadRes.json()
+    const rawUrl = uploadData?.data?.url
+    if (!rawUrl) {
+      clearTimeout(timeoutId)
+      return null
+    }
+
+    const directUrl = rawUrl.replace('tmpfiles.org/', 'tmpfiles.org/dl/')
+
+    // 2. Kirim URL gambar ke endpoint GPT-4o-Mini
+    const prompt =
+      'Tolong analisis gambar struk bukti transfer pembayaran ini secara akurat. ' +
+      'Ekstrak: 1. Nama Bank/E-Wallet asal, 2. Nominal Transfer, 3. Nama Penerima, 4. Status Transaksi.'
+
+    const apiUrl = `https://onlym.my.id/ai/gpt-4o-mini?q=${encodeURIComponent(
+      prompt
+    )}&url=${encodeURIComponent(directUrl)}&apikey=${encodeURIComponent(finalApiKey)}`
+
+    const aiRes = await fetch(apiUrl, { signal: controller.signal })
+    clearTimeout(timeoutId)
+
+    if (!aiRes.ok) return null
+
+    const aiData = await aiRes.json()
+    if (!aiData?.status || !aiData?.result) return null
+
+    const parsed = parseOCRText(aiData.result)
+    return parsed
+  } catch (err: any) {
+    clearTimeout(timeoutId)
+    console.warn('[GPT-4o-Mini Vision Error]:', err.message || err)
+    return null
+  }
+}
+
+/**
+ * Multi-Engine AI Payment Proof Analyzer
+ * Mencoba GPT-4o-Mini (ONLym API) terlebih dahulu, lalu otomatis beralih ke Gemini Vision jika gagal.
+ */
+export async function analyzePaymentProofWithAI(
+  imageBase64: string,
+  geminiApiKey?: string | null,
+  onlymApiKey?: string | null
+): Promise<PaymentAnalysis | null> {
+  if (!imageBase64 || !imageBase64.trim()) return null
+
+  // Engine 1: GPT-4o-Mini Vision via ONLym
+  try {
+    const gptResult = await analyzePaymentProofWithGPT4oMini(imageBase64, onlymApiKey)
+    if (gptResult && gptResult.isValidProof && gptResult.amount) {
+      console.log(
+        `[AI Vision Engine: GPT-4o-Mini] Sukses membaca struk: ${gptResult.summary} (Nominal: Rp ${gptResult.amount})`
+      )
+      return gptResult
+    }
+  } catch (err: any) {
+    console.warn('[GPT-4o-Mini Failed, Fallback to Gemini]:', err.message || err)
+  }
+
+  // Engine 2: Google Gemini Flash Vision
+  if (geminiApiKey && geminiApiKey.trim()) {
+    try {
+      const geminiResult = await analyzePaymentProofWithGemini(imageBase64, geminiApiKey)
+      if (geminiResult && geminiResult.isValidProof) {
+        console.log(
+          `[AI Vision Engine: Gemini Flash] Sukses membaca struk: ${geminiResult.summary} (Nominal: Rp ${geminiResult.amount})`
+        )
+        return geminiResult
+      }
+    } catch (gErr: any) {
+      console.warn('[Gemini Vision Failed]:', gErr.message || gErr)
+    }
+  }
+
+  return null
+}

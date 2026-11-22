@@ -4,8 +4,47 @@ import { generateReceiptNo } from '@/lib/utils'
 import {
   predictProductWithGemini,
   analyzePaymentProofWithGemini,
+  analyzePaymentProofWithAI,
   PaymentAnalysis,
 } from '@/lib/gemini-matcher'
+
+// Helper: Ekstraksi kuantitas/jumlah item dari catatan pesanan jika disebutkan
+function extractQuantity(text: string): number | null {
+  if (!text) return null
+  const lower = text.toLowerCase()
+
+  // 1. Pola eksplisit dengan satuan kuantitas (misal: 3x, 3 pcs, 3 akun, 3 slot, 3 paket, 3 buah, 3 biji)
+  const unitMatch = lower.match(/\b(\d+)\s*(?:x|pcs|buah|biji|akun|slot|item|paket)\b/i)
+  if (unitMatch) {
+    const q = parseInt(unitMatch[1], 10)
+    if (q >= 1 && q <= 100) return q
+  }
+
+  // 2. Pola awalan x: x3, x2, x 5
+  const xMatch = lower.match(/\bx\s*(\d+)\b/i)
+  if (xMatch) {
+    const q = parseInt(xMatch[1], 10)
+    if (q >= 1 && q <= 100) return q
+  }
+
+  // 3. Pola kata kerja pembelian: beli 3, order 3, ambil 3, pesan 3
+  const verbMatch = lower.match(/\b(?:beli|order|pesan|ambil)\s+(\d+)\b/i)
+  if (verbMatch) {
+    const q = parseInt(verbMatch[1], 10)
+    if (q >= 1 && q <= 100) return q
+  }
+
+  // 4. Pola angka langsung diikuti nama brand (misal: 3 capcut, 2 netflix, 4 spotify)
+  const brandMatch = lower.match(
+    /\b(\d+)\s+(?:capcut|netflix|spotify|canva|youtube|yt|alight|am|vidio|viu|wetv|chatgpt|gpt)\b/i
+  )
+  if (brandMatch) {
+    const q = parseInt(brandMatch[1], 10)
+    if (q >= 1 && q <= 50) return q
+  }
+
+  return null
+}
 
 // Helper: Ekstraksi nominal harga dari teks jika ada
 function extractPrice(text: string): number | null {
@@ -346,7 +385,7 @@ export async function POST(request: NextRequest) {
           ? body.productName.trim()
           : ''
 
-      // Ambil API Key Gemini (dari setting database toko, env, atau payload request)
+      // Ambil API Key Gemini & ONLym (dari setting database toko, env, atau payload request)
       const geminiApiKey =
         body.geminiApiKey ||
         storeSetting?.geminiApiKey ||
@@ -354,17 +393,23 @@ export async function POST(request: NextRequest) {
         request.headers.get('x-gemini-key') ||
         null
 
-      // 0. Analisis Gambar Bukti Transfer (Gemini Vision Multimodal)
+      const onlymApiKey =
+        body.onlymApiKey ||
+        process.env.ONLYM_API_KEY ||
+        'ONLym-ad4f16'
+
+      // 0. Analisis Gambar Bukti Transfer (Multi-Engine AI Vision: GPT-4o-Mini + Gemini Fallback)
       let paymentAnalysis: PaymentAnalysis | null = null
-      if (geminiApiKey && body.imageBase64) {
+      if (body.imageBase64) {
         try {
-          paymentAnalysis = await analyzePaymentProofWithGemini(
+          paymentAnalysis = await analyzePaymentProofWithAI(
             body.imageBase64,
-            geminiApiKey
+            geminiApiKey,
+            onlymApiKey
           )
           if (paymentAnalysis?.isValidProof) {
             console.log(
-              `[Gemini Vision Struk]: ${paymentAnalysis.summary} (Nominal: Rp ${paymentAnalysis.amount}, Status: ${paymentAnalysis.status})`
+              `[AI Vision Struk]: ${paymentAnalysis.summary} (Nominal: Rp ${paymentAnalysis.amount}, Status: ${paymentAnalysis.status})`
             )
             // Jika ada nominal dari struk dan belum diisi harga manual, gunakan nominal struk!
             if (paymentAnalysis.amount && (!requestedPrice || requestedPrice === 0)) {
@@ -372,7 +417,7 @@ export async function POST(request: NextRequest) {
             }
           }
         } catch (visErr: any) {
-          console.warn('[Gemini Vision Warning]:', visErr.message)
+          console.warn('[AI Vision Warning]:', visErr.message)
         }
       }
 
@@ -464,10 +509,49 @@ export async function POST(request: NextRequest) {
       }
 
       const newReceiptNo = generateReceiptNo(storeSetting?.receiptPrefix || 'RDM')
-      const finalPrice =
+      const baseUnitPrice = matchedProduct.sellPrice || 0
+      const paidAmount =
         requestedPrice !== null && requestedPrice > 0
           ? requestedPrice
-          : matchedProduct.sellPrice
+          : 0
+
+      // Logika Kalkulasi Kuantitas Dinamis & Akurasi Nominal Pembayaran
+      let targetQuantity = 1
+      let finalUnitPrice = baseUnitPrice > 0 ? baseUnitPrice : (paidAmount > 0 ? paidAmount : 0)
+      let finalTotalPrice = baseUnitPrice > 0 ? baseUnitPrice : (paidAmount > 0 ? paidAmount : 0)
+
+      const textQty = extractQuantity(note)
+
+      if (baseUnitPrice > 0 && paidAmount > 0) {
+        const quotient = Math.floor(paidAmount / baseUnitPrice)
+        const remainder = paidAmount % baseUnitPrice
+
+        if (remainder === 0 && quotient >= 2) {
+          // Pembeli mentransfer nominal pas kelipatan harga produk! (Contoh: Capcut 5.500 x 3 = 16.500)
+          targetQuantity = quotient
+          finalUnitPrice = baseUnitPrice
+          finalTotalPrice = paidAmount
+        } else if (textQty && textQty >= 2) {
+          // Di catatan pembeli menyebut kuantitas tertentu (misal: "beli 3 capcut 15rb")
+          targetQuantity = textQty
+          finalUnitPrice = Math.round(paidAmount / textQty)
+          finalTotalPrice = paidAmount
+        } else {
+          // Pembelian 1 pcs dengan harga transfer khusus / custom
+          targetQuantity = 1
+          finalUnitPrice = paidAmount
+          finalTotalPrice = paidAmount
+        }
+      } else if (textQty && textQty >= 2) {
+        // Kuantitas tertera di catatan tanpa nominal bukti bayar
+        targetQuantity = textQty
+        finalUnitPrice = baseUnitPrice
+        finalTotalPrice = baseUnitPrice * textQty
+      } else {
+        targetQuantity = 1
+        finalUnitPrice = paidAmount > 0 ? paidAmount : baseUnitPrice
+        finalTotalPrice = finalUnitPrice
+      }
 
       const finalProductName = requestedProductName || matchedProduct.name
 
@@ -476,8 +560,9 @@ export async function POST(request: NextRequest) {
         paymentMethod = paymentAnalysis.sourceMethod
       }
 
+      const qtyBadge = targetQuantity > 1 ? ` (${targetQuantity}x)` : ''
       const paymentDetailNote = paymentAnalysis?.summary ? ` [💳 ${paymentAnalysis.summary}]` : ''
-      const txNote = `[WA Bot${isResellerOrder ? ' (Reseller)' : ''}] ${groupName ? `(${groupName}) ` : ''}${note || 'Pesanan WhatsApp'}${paymentDetailNote}`
+      const txNote = `[WA Bot${isResellerOrder ? ' (Reseller)' : ''}] ${groupName ? `(${groupName}) ` : ''}${note || 'Pesanan WhatsApp'}${qtyBadge}${paymentDetailNote}`
 
       // Cek apakah pelanggan sudah memiliki transaksi PENDING (misal sebelumnya tercatat WA-CUSTOM / Rp 0)
       let existingPendingTx: any = null
@@ -522,20 +607,20 @@ export async function POST(request: NextRequest) {
         transaction = await prisma.transaction.update({
           where: { id: existingPendingTx.id },
           data: {
-            subtotal: finalPrice,
-            total: finalPrice,
+            subtotal: finalTotalPrice,
+            total: finalTotalPrice,
             paymentMethod,
-            paymentAmount: finalPrice,
+            paymentAmount: finalTotalPrice,
             note: txNote,
             items: {
               create: [
                 {
                   productId: matchedProduct.id,
                   productName: finalProductName,
-                  quantity: 1,
-                  price: finalPrice,
+                  quantity: targetQuantity,
+                  price: finalUnitPrice,
                   buyPrice: matchedProduct?.buyPrice || 0,
-                  subtotal: finalPrice,
+                  subtotal: finalTotalPrice,
                 },
               ],
             },
@@ -552,10 +637,10 @@ export async function POST(request: NextRequest) {
             receiptNo: newReceiptNo,
             userId: adminUser.id,
             customerId: customer?.id || null,
-            subtotal: finalPrice,
-            total: finalPrice,
+            subtotal: finalTotalPrice,
+            total: finalTotalPrice,
             paymentMethod,
-            paymentAmount: finalPrice,
+            paymentAmount: finalTotalPrice,
             changeAmount: 0,
             status: 'PENDING',
             note: txNote,
@@ -564,10 +649,10 @@ export async function POST(request: NextRequest) {
                 {
                   productId: matchedProduct.id,
                   productName: finalProductName,
-                  quantity: 1,
-                  price: finalPrice,
+                  quantity: targetQuantity,
+                  price: finalUnitPrice,
                   buyPrice: matchedProduct?.buyPrice || 0, // Kunci HPP pada detik pesanan masuk
-                  subtotal: finalPrice,
+                  subtotal: finalTotalPrice,
                 },
               ],
             },
@@ -583,26 +668,31 @@ export async function POST(request: NextRequest) {
       const accountInfo = {
         hasStockManagement: false,
         accountData: null as string | null,
-        snk: matchedProduct?.snk || null as string | null,
+        snk: matchedProduct?.snk || (null as string | null),
         remainingStock: matchedProduct?.stock ?? 0,
         isOutOfStock: false,
+        accountCount: 0,
+        requestedCount: targetQuantity,
+        isPartialStock: false,
       }
 
       if (matchedProduct?.manageStock) {
         accountInfo.hasStockManagement = true
 
-        const availableAccount = await prisma.digitalAccount.findFirst({
+        const availableAccounts = await prisma.digitalAccount.findMany({
           where: {
             productId: matchedProduct.id,
             status: 'AVAILABLE',
           },
+          take: targetQuantity,
           orderBy: { createdAt: 'asc' },
         })
 
-        if (availableAccount) {
+        if (availableAccounts.length > 0) {
+          const accountIds = availableAccounts.map((a) => a.id)
           // Kunci akun untuk transaksi ini & ubah status menjadi SOLD
-          await prisma.digitalAccount.update({
-            where: { id: availableAccount.id },
+          await prisma.digitalAccount.updateMany({
+            where: { id: { in: accountIds } },
             data: {
               status: 'SOLD',
               transactionId: transaction.id,
@@ -624,8 +714,8 @@ export async function POST(request: NextRequest) {
               data: {
                 productId: matchedProduct.id,
                 type: 'SALE',
-                quantity: -1,
-                note: `Penjualan Bot WA #${transaction.receiptNo}`,
+                quantity: -availableAccounts.length,
+                note: `Penjualan Bot WA (${availableAccounts.length} Akun) #${transaction.receiptNo}`,
                 reference: transaction.id,
                 userId: adminUser.id,
               },
@@ -634,12 +724,25 @@ export async function POST(request: NextRequest) {
             console.error('Failed to log stock movement in bot order:', e)
           }
 
-          accountInfo.accountData = availableAccount.accountData
+          if (availableAccounts.length === 1) {
+            accountInfo.accountData = availableAccounts[0].accountData
+          } else {
+            accountInfo.accountData = availableAccounts
+              .map((acc, idx) => `[AKUN #${idx + 1}]\n${acc.accountData}`)
+              .join('\n\n')
+          }
+
           accountInfo.remainingStock = remaining
+          accountInfo.accountCount = availableAccounts.length
+          accountInfo.requestedCount = targetQuantity
+          accountInfo.isPartialStock = availableAccounts.length < targetQuantity
           accountInfo.isOutOfStock = false
         } else {
           accountInfo.isOutOfStock = true
           accountInfo.remainingStock = 0
+          accountInfo.accountCount = 0
+          accountInfo.requestedCount = targetQuantity
+          accountInfo.isPartialStock = false
         }
       }
 
@@ -649,7 +752,9 @@ export async function POST(request: NextRequest) {
         isUpdated: Boolean(isCustomPending),
         receiptNo: transaction.receiptNo,
         productName: finalProductName,
-        price: finalPrice,
+        price: finalTotalPrice,
+        unitPrice: finalUnitPrice,
+        quantity: targetQuantity,
         customerName: customer?.name || customerPhone,
         customerPhone: cleanPhone,
         status: 'PENDING',
@@ -670,6 +775,9 @@ export async function POST(request: NextRequest) {
         snk: accountInfo.snk,
         remainingStock: accountInfo.remainingStock,
         isOutOfStock: accountInfo.isOutOfStock,
+        accountCount: accountInfo.accountCount,
+        requestedCount: accountInfo.requestedCount,
+        isPartialStock: accountInfo.isPartialStock,
         message: 'Transaksi berhasil dicatat ke Web POS dengan status PENDING',
       })
     }
@@ -846,22 +954,36 @@ export async function POST(request: NextRequest) {
           include: { items: true, customer: true },
         })
 
-        const assignedAccount = await prisma.digitalAccount.findFirst({
+        const assignedAccounts = await prisma.digitalAccount.findMany({
           where: { transactionId: pendingTx.id },
           include: { product: true },
         })
 
+        let formattedAccountData: string | null = null
+        if (assignedAccounts.length === 1) {
+          formattedAccountData = assignedAccounts[0].accountData
+        } else if (assignedAccounts.length > 1) {
+          formattedAccountData = assignedAccounts
+            .map((a, idx) => `[AKUN #${idx + 1}]\n${a.accountData}`)
+            .join('\n\n')
+        }
+
+        const firstItem = updated.items[0]
         return NextResponse.json({
           success: true,
           action: 'done',
           receiptNo: updated.receiptNo,
-          productName: updated.items[0]?.productName || 'Produk',
+          productName: firstItem?.productName || 'Produk',
           total: updated.total,
+          price: updated.total,
+          unitPrice: firstItem?.price || updated.total,
+          quantity: firstItem?.quantity || 1,
           customerName: updated.customer?.name || customerPhone,
           status: 'COMPLETED',
-          hasStockManagement: Boolean(assignedAccount),
-          accountData: assignedAccount?.accountData || null,
-          snk: assignedAccount?.product?.snk || null,
+          hasStockManagement: assignedAccounts.length > 0,
+          accountData: formattedAccountData,
+          snk: assignedAccounts[0]?.product?.snk || null,
+          accountCount: assignedAccounts.length,
           message: 'Transaksi berhasil diselesaikan di Web POS',
         })
       }
