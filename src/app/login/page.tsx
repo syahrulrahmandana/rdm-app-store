@@ -48,20 +48,23 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{
-            width: 72,
-            height: 72,
-            background: 'linear-gradient(135deg, #FF731D, #5F9DF7)',
-            borderRadius: 16,
+            width: 88,
+            height: 88,
+            borderRadius: 22,
+            overflow: 'hidden',
+            margin: '0 auto 18px',
+            background: '#ffffff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            margin: '0 auto 16px',
-            fontSize: 32,
-            fontWeight: 800,
-            color: 'white',
-            boxShadow: '0 8px 32px rgba(255, 115, 29, 0.4)',
+            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.25)',
+            border: '2px solid rgba(255, 255, 255, 0.1)',
           }}>
-            R
+            <img 
+              src="/logo.png" 
+              alt="RULLHHH Digital Market" 
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+            />
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 800 }}>
             <span className="gradient-text">RDM APP STORE</span>

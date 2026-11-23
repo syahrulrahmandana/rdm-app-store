@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { HiOutlineBell } from 'react-icons/hi2'
 import { useState, useEffect, useRef } from 'react'
 
@@ -26,6 +27,7 @@ interface NotificationItem {
 
 export default function Header({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const pathname = usePathname()
+  const { data: session } = useSession()
   const [currentTime, setCurrentTime] = useState(new Date())
   
   // Notification states
@@ -142,6 +144,44 @@ export default function Header({ onToggleSidebar }: { onToggleSidebar: () => voi
             />
           )}
         </button>
+
+        {/* Profile / Store Logo Avatar (Pojok Kanan Atas) */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '4px 12px 4px 6px',
+          borderRadius: 'var(--radius-full)',
+          background: 'var(--bg-input)',
+          border: '1px solid var(--border-color)',
+        }}>
+          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            overflow: 'hidden',
+            background: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+          }}>
+            <img 
+              src="/logo.png" 
+              alt="RDM Logo" 
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+            />
+          </div>
+          <div className="hide-mobile" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2, color: 'var(--text-primary)' }}>
+              {session?.user?.name || 'Owner RDM'}
+            </span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              {session?.user?.role || 'OWNER'}
+            </span>
+          </div>
+        </div>
 
         {/* Notifications Dropdown */}
         {showNotifications && (

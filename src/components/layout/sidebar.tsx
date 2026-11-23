@@ -58,7 +58,24 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose:
   return (
     <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">R</div>
+        <div style={{
+          width: 42,
+          height: 42,
+          borderRadius: 12,
+          overflow: 'hidden',
+          background: '#ffffff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        }}>
+          <img
+            src="/logo.png"
+            alt="RDM Logo"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        </div>
         <div>
           <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--sidebar-text)' }}>
             RDM APP STORE
@@ -94,8 +111,23 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose:
       </nav>
 
       <div className="sidebar-user">
-        <div className="sidebar-avatar">
-          {session?.user?.name ? getInitials(session.user.name) : '?'}
+        <div style={{
+          width: 36,
+          height: 36,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          background: '#ffffff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          border: '1px solid var(--sidebar-border)',
+        }}>
+          <img
+            src="/logo.png"
+            alt="RDM"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--sidebar-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

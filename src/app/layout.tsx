@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   title: "RDM APP STORE - Aplikasi Kasir Premium",
   description: "Aplikasi Point of Sale (POS) premium untuk manajemen toko retail. Kelola produk, transaksi, stok, dan laporan bisnis Anda.",
   keywords: "kasir, POS, point of sale, manajemen toko, aplikasi kasir",
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export default function RootLayout({
