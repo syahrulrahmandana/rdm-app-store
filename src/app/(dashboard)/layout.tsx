@@ -1,11 +1,22 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { signOut } from 'next-auth/react'
 import Sidebar from '@/components/layout/sidebar'
 import Header from '@/components/layout/header'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Otomatis minta login kembali setelah 30 menit berada di dashboard
+  useEffect(() => {
+    const TIMEOUT_MS = 30 * 60 * 1000 // 30 menit
+    const timer = setTimeout(() => {
+      signOut({ callbackUrl: '/login?expired=1' })
+    }, TIMEOUT_MS)
+
+    return () => clearTimeout(timer)
+  }, [])
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen(prev => !prev)
