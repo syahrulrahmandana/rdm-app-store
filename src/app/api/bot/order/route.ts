@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
 
     // Ambil data penting secara paralel menggunakan Promise.all untuk kecepatan maksimal
     const [adminUser, existingCustomer, storeSetting, allProducts] = await Promise.all([
-      prisma.user.findFirst({ where: { role: 'ADMIN' } }).then((u) => u || prisma.user.findFirst()),
+      prisma.user.findFirst({ where: { role: { in: ['ADMIN', 'OWNER'] }, isActive: true } }).then((u) => u || prisma.user.findFirst()),
       cleanPhone ? prisma.customer.findFirst({ where: { phone: { contains: cleanPhone } } }) : Promise.resolve(null),
       prisma.store.findFirst({ select: { geminiApiKey: true, receiptPrefix: true } }),
       action === 'proses' || action === 'done' ? prisma.product.findMany({ where: { isActive: true } }) : Promise.resolve([]),

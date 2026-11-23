@@ -99,7 +99,7 @@ export default function LoginPage() {
                 id="login-email"
                 type="email"
                 className="input"
-                placeholder="admin@rdm.com"
+                placeholder="owner@rdm.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -163,47 +163,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        {/* Demo Credentials */}
-        <div style={{
-          marginTop: 24,
-          padding: 16,
-          background: 'var(--bg-input)',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--border-color)',
-        }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Demo Login
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {[
-              { role: 'Admin', email: 'admin@rdm.com' },
-              { role: 'Kasir', email: 'kasir@rdm.com' },
-              { role: 'Owner', email: 'owner@rdm.com' },
-            ].map((demo) => (
-              <button
-                key={demo.email}
-                type="button"
-                onClick={() => { setEmail(demo.email); setPassword('admin123') }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--accent-primary)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  textAlign: 'left',
-                  padding: '4px 0',
-                  fontFamily: "'JetBrains Mono', monospace",
-                }}
-              >
-                {demo.role}: {demo.email}
-              </button>
-            ))}
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-              Password: admin123
-            </span>
-          </div>
-        </div>
       </div>
 
       <style jsx>{`
