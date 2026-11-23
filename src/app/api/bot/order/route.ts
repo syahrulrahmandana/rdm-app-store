@@ -305,7 +305,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const apiKey =
       request.headers.get('x-api-key') || body.apiKey || body.secretKey
-    const expectedKey = process.env.BOT_API_KEY || 'rdm-bot-pos-secret-2026'
+    const expectedKey = process.env.BOT_API_KEY || ''
 
     if (apiKey !== expectedKey) {
       return NextResponse.json(
