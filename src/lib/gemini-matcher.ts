@@ -372,7 +372,7 @@ export async function analyzePaymentProofWithGPT4oMini(
   imageBase64: string,
   apiKey?: string | null
 ): Promise<PaymentAnalysis | null> {
-  const finalApiKey = apiKey?.trim() || process.env.ONLYM_API_KEY || 'ONLym-ad4f16'
+  const finalApiKey = apiKey?.trim() || process.env.ONLYM_API_KEY || ''
   if (!imageBase64 || !imageBase64.trim()) return null
 
   const controller = new AbortController()

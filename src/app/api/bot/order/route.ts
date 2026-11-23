@@ -396,7 +396,7 @@ export async function POST(request: NextRequest) {
       const onlymApiKey =
         body.onlymApiKey ||
         process.env.ONLYM_API_KEY ||
-        'ONLym-ad4f16'
+        ''
 
       // 0. Analisis Gambar Bukti Transfer (Multi-Engine AI Vision: GPT-4o-Mini + Gemini Fallback)
       let paymentAnalysis: PaymentAnalysis | null = null
