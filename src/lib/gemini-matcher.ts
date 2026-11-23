@@ -79,11 +79,10 @@ ATURAN WAJIB:
   "reasoning": "penjelasan singkat mengapa produk ini dipilih"
 }`
 
-    // Model candidate list: model Gemini Flash terbaru
+    // Model candidate list: model Gemini Flash resmi
     const candidateModels = [
-      'gemini-3.5-flash',
-      'gemini-3.8-flash',
-      'gemini-3.5-flash-lite',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
     ]
 
     for (const modelName of candidateModels) {
@@ -201,9 +200,8 @@ Keterangan aturan:
 - status: BERHASIL, MENUNGGU, atau GAGAL.`
 
   const candidateModels = [
-    'gemini-3.5-flash',
-    'gemini-3.8-flash',
-    'gemini-3.5-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
   ]
 
   for (const modelName of candidateModels) {
