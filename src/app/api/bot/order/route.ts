@@ -512,61 +512,53 @@ export async function POST(request: NextRequest) {
       const baseUnitPrice = matchedProduct.sellPrice || 0
       const textQty = extractQuantity(note)
 
-      // Jika AI berhasil membaca nominal struk transfer asli, jadikan sebagai prioritas utama
-      let paidAmount = requestedPrice !== null && requestedPrice > 0 ? requestedPrice : 0
+      // Tentukan harga satuan efektif:
+      // Prioritas 1: requestedPrice (dari bot/list.json atau input manual admin)
+      // Prioritas 2: baseUnitPrice (dari katalog Web POS)
+      const effectiveUnitPrice =
+        requestedPrice !== null && requestedPrice > 0
+          ? requestedPrice
+          : (baseUnitPrice > 0 ? baseUnitPrice : 0)
+
+      // Kuantitas dasar
+      let targetQuantity = textQty && textQty >= 1 ? textQty : 1
+      let finalUnitPrice = effectiveUnitPrice
+      let finalTotalPrice = effectiveUnitPrice * targetQuantity
+
+      // Jika AI Vision berhasil membaca nominal struk transfer asli:
       if (
         paymentAnalysis?.isValidProof &&
         paymentAnalysis.amount &&
         paymentAnalysis.amount > 0 &&
         !body.adminManualPrice
       ) {
-        paidAmount = paymentAnalysis.amount
-      }
+        const receiptTotal = paymentAnalysis.amount
 
-      // Logika Kalkulasi Kuantitas Dinamis & Akurasi Nominal Pembayaran
-      let targetQuantity = 1
-      let finalUnitPrice = baseUnitPrice > 0 ? baseUnitPrice : (paidAmount > 0 ? paidAmount : 0)
-      let finalTotalPrice = baseUnitPrice > 0 ? baseUnitPrice : (paidAmount > 0 ? paidAmount : 0)
+        if (textQty && textQty >= 2) {
+          // Pembeli transfer dengan kuantitas >= 2 di catatan
+          targetQuantity = textQty
+          finalUnitPrice = Math.round(receiptTotal / textQty)
+          finalTotalPrice = receiptTotal
+        } else if (effectiveUnitPrice > 0) {
+          const quotient = Math.floor(receiptTotal / effectiveUnitPrice)
+          const remainder = receiptTotal % effectiveUnitPrice
 
-      if (baseUnitPrice > 0 && paidAmount > 0) {
-        const quotient = Math.floor(paidAmount / baseUnitPrice)
-        const remainder = paidAmount % baseUnitPrice
-
-        if (remainder === 0 && quotient >= 2) {
-          // Kasus A: Pembeli mentransfer nominal pas kelipatan harga produk! (Contoh: Capcut 5.500 x 3 = 16.500)
-          targetQuantity = quotient
-          finalUnitPrice = baseUnitPrice
-          finalTotalPrice = paidAmount
-        } else if (textQty && textQty >= 2) {
-          // Kasus B: Di catatan tertera kuantitas beli >= 2 (contoh: "3 akun" atau "beli 3")
-          if (paidAmount <= baseUnitPrice) {
-            // SANGAT KRUSIAL: Jika paidAmount <= baseUnitPrice (misal Rp 5.500 dari list.json/default),
-            // angka tersebut adalah HARGA SATUAN (1 akun), BUKAN total untuk 3 akun!
-            // Total harus dihitung: baseUnitPrice * textQty (misal 5.500 * 3 = 16.500)
-            targetQuantity = textQty
-            finalUnitPrice = baseUnitPrice
-            finalTotalPrice = baseUnitPrice * textQty
+          if (remainder === 0 && quotient >= 2) {
+            // Nominal struk adalah kelipatan pas dari harga satuan
+            targetQuantity = quotient
+            finalUnitPrice = effectiveUnitPrice
+            finalTotalPrice = receiptTotal
           } else {
-            // Pembeli mentransfer nominal borongan / negosiasi (misal 3 akun transfer Rp 15.000)
-            targetQuantity = textQty
-            finalUnitPrice = Math.round(paidAmount / textQty)
-            finalTotalPrice = paidAmount
+            // Nominal struk 1 unit atau borongan
+            targetQuantity = 1
+            finalUnitPrice = receiptTotal
+            finalTotalPrice = receiptTotal
           }
         } else {
-          // Kasus C: Pembelian 1 unit normal
           targetQuantity = 1
-          finalUnitPrice = paidAmount
-          finalTotalPrice = paidAmount
+          finalUnitPrice = receiptTotal
+          finalTotalPrice = receiptTotal
         }
-      } else if (textQty && textQty >= 2) {
-        // Kasus D: Kuantitas tertera di catatan tanpa nominal bukti bayar
-        targetQuantity = textQty
-        finalUnitPrice = baseUnitPrice > 0 ? baseUnitPrice : (paidAmount > 0 ? paidAmount : 0)
-        finalTotalPrice = finalUnitPrice * textQty
-      } else {
-        targetQuantity = 1
-        finalUnitPrice = paidAmount > 0 ? paidAmount : baseUnitPrice
-        finalTotalPrice = finalUnitPrice
       }
 
       const finalProductName = requestedProductName || matchedProduct.name
