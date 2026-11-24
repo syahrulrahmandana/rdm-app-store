@@ -325,27 +325,27 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 60px;
-          max-width: 1080px;
+          gap: 50px;
+          max-width: 1180px;
           width: 100%;
           margin: 0 auto;
         }
 
-        /* LEFT: Mascot Section */
+        /* LEFT: Mascot Section (Desktop Only - Large & Grand) */
         .mascot-section {
-          flex: 1;
+          flex: 1.2;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
           position: relative;
-          max-width: 480px;
+          max-width: 600px;
         }
 
         .sunburst-backdrop {
           position: absolute;
-          width: 390px;
-          height: 390px;
+          width: 530px;
+          height: 530px;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -55%);
@@ -395,43 +395,43 @@ export default function LoginPage() {
         }
 
         .streak-1 {
-          width: 48px;
-          height: 8px;
-          top: 15px;
-          right: 35px;
+          width: 56px;
+          height: 10px;
+          top: 20px;
+          right: 40px;
           transform: rotate(25deg);
         }
 
         .streak-2 {
-          width: 32px;
-          height: 6px;
-          top: 45px;
-          right: 15px;
+          width: 38px;
+          height: 8px;
+          top: 55px;
+          right: 20px;
           transform: rotate(40deg);
         }
 
         .streak-3 {
-          width: 40px;
-          height: 8px;
-          bottom: 40px;
-          left: 10px;
+          width: 48px;
+          height: 10px;
+          bottom: 45px;
+          left: 15px;
           transform: rotate(-35deg);
         }
 
         .mascot-badge {
           position: absolute;
-          top: 12px;
-          right: 20px;
+          top: -6px;
+          right: 25px;
           z-index: 3;
           display: inline-flex;
           align-items: center;
           gap: 6px;
           background: #ffffff;
-          padding: 8px 16px;
+          padding: 9px 18px;
           border-radius: 9999px;
-          box-shadow: 0 8px 20px rgba(13, 71, 161, 0.12);
+          box-shadow: 0 8px 24px rgba(13, 71, 161, 0.14);
           border: 1px solid #E3F2FD;
-          font-size: 13px;
+          font-size: 14px;
           font-weight: 700;
           color: #0D47A1;
           animation: floatBadge 3.5s ease-in-out infinite;
@@ -446,7 +446,7 @@ export default function LoginPage() {
           position: relative;
           z-index: 2;
           width: 100%;
-          max-width: 380px;
+          max-width: 520px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -455,8 +455,9 @@ export default function LoginPage() {
         .mascot-img {
           width: 100%;
           height: auto;
+          max-width: 520px;
           object-fit: contain;
-          filter: drop-shadow(0 20px 30px rgba(13, 71, 161, 0.18));
+          filter: drop-shadow(0 24px 35px rgba(13, 71, 161, 0.22));
           animation: floatMascot 4s ease-in-out infinite;
         }
 
@@ -464,18 +465,18 @@ export default function LoginPage() {
           position: relative;
           z-index: 2;
           text-align: center;
-          margin-top: 10px;
+          margin-top: 14px;
         }
 
         .mascot-caption h3 {
-          font-size: 18px;
+          font-size: 20px;
           font-weight: 800;
           color: #0D47A1;
           margin: 0 0 4px 0;
         }
 
         .mascot-caption p {
-          font-size: 13px;
+          font-size: 14px;
           color: #64748B;
           margin: 0;
         }
@@ -483,7 +484,7 @@ export default function LoginPage() {
         /* RIGHT: Card Section */
         .card-section {
           flex: 1;
-          max-width: 440px;
+          max-width: 450px;
           width: 100%;
         }
 
@@ -837,33 +838,25 @@ export default function LoginPage() {
         @media (max-width: 960px) {
           .login-wrapper {
             flex-direction: column;
-            gap: 32px;
-            padding: 12px 0;
+            justify-content: center;
+            align-items: center;
+            gap: 0;
+            padding: 16px 0;
+            max-width: 460px;
           }
 
+          /* Sembunyikan maskot di layar HP / Tablet, hanya tampil di Desktop */
           .mascot-section {
-            max-width: 320px;
-          }
-
-          .sunburst-backdrop {
-            width: 280px;
-            height: 280px;
-          }
-
-          .mascot-image-wrapper {
-            max-width: 240px;
-          }
-
-          .mascot-caption {
-            display: none;
+            display: none !important;
           }
 
           .card-section {
-            max-width: 420px;
+            max-width: 450px;
+            width: 100%;
           }
 
           .card-container {
-            padding: 32px 24px;
+            padding: 38px 28px;
             border-radius: 28px;
           }
         }
@@ -874,35 +867,26 @@ export default function LoginPage() {
           }
 
           .mascot-section {
-            max-width: 240px;
-          }
-
-          .sunburst-backdrop {
-            width: 220px;
-            height: 220px;
-          }
-
-          .mascot-image-wrapper {
-            max-width: 190px;
+            display: none !important;
           }
 
           .card-title {
-            font-size: 24px;
+            font-size: 26px;
           }
 
           .card-container {
-            padding: 28px 18px;
+            padding: 30px 20px;
             border-radius: 24px;
           }
 
           .custom-input {
-            height: 48px;
-            font-size: 13px;
+            height: 50px;
+            font-size: 14px;
           }
 
           .submit-pill-btn {
-            height: 48px;
-            font-size: 14px;
+            height: 50px;
+            font-size: 15px;
           }
         }
       `}</style>
