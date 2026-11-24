@@ -68,10 +68,10 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose:
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
         }}>
           <img
-            src="/logo.png"
+            src="/icon.png"
             alt="RDM Logo"
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
@@ -121,10 +121,10 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose:
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          border: '1px solid var(--sidebar-border)',
+          border: '1.5px solid rgba(144, 202, 249, 0.4)',
         }}>
           <img
-            src="/logo.png"
+            src="/icon.png"
             alt="RDM"
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />

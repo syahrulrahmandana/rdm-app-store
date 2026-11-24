@@ -168,7 +168,7 @@ export default function Header({ onToggleSidebar }: { onToggleSidebar: () => voi
             boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
           }}>
             <img 
-              src="/logo.png" 
+              src="/icon.png" 
               alt="RDM Logo" 
               style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
             />
