@@ -8,9 +8,12 @@ export const metadata: Metadata = {
   description: "Aplikasi Point of Sale (POS) premium untuk manajemen toko retail. Kelola produk, transaksi, stok, dan laporan bisnis Anda.",
   keywords: "kasir, POS, point of sale, manajemen toko, aplikasi kasir",
   icons: {
-    icon: '/logo.png',
-    shortcut: '/logo.png',
-    apple: '/logo.png',
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon.png', type: 'image/png', sizes: '512x512' },
+    ],
+    shortcut: '/icon.png',
+    apple: '/apple-touch-icon.png',
   },
 }
 
